@@ -1815,7 +1815,11 @@ function renderPreview(qt) {
         <table style="font-size:12px;border-collapse:collapse;margin-left:auto">
           <tr>
             <td style="color:#888;padding:2px 6px 2px 0;text-align:right">เลขที่:</td>
-            <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C;padding:2px 0">${qt.qt_number||''}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C;padding:2px 0">
+              ${qt.qt_number||''}${parseInt(qt.revision||0)>0
+                ? ` <span style="display:inline-block;background:#FFF3CD;color:#7B4F00;border:1px solid #F9A825;padding:1px 7px;border-radius:10px;font-family:'Sarabun',sans-serif;font-size:11px;font-weight:700">Rev.${qt.revision}</span>`
+                : ''}
+            </td>
           </tr>
           <tr>
             <td style="color:#888;padding:2px 6px 2px 0;text-align:right">วันที่ออก:</td>
@@ -1855,7 +1859,7 @@ function renderPreview(qt) {
         ${vatRow}
         <tr style="background:#7B0000;color:#fff">
           <td colspan="4" style="padding:8px 10px;font-size:12px;font-style:italic;color:rgba(255,255,255,.85)">
-            ${numToThaiText(parseFloat(qt.total||0))}
+            (${numToThaiText(parseFloat(qt.total||0))})
           </td>
           <td style="padding:8px;text-align:right;font-weight:800;font-size:13px;white-space:nowrap">ยอดรวมสุทธิ</td>
           <td style="padding:8px;text-align:right;font-weight:900;font-size:14px;font-family:'IBM Plex Mono',monospace;white-space:nowrap">${fmtNum(qt.total)}</td>
@@ -1893,7 +1897,9 @@ function renderPreview(qt) {
       <div style="text-align:center;margin-bottom:24px">
         <div style="font-size:16px;font-weight:800;color:#B71C1C">เอกสารแนบท้ายใบเสนอราคา</div>
         <div style="font-size:13px;color:#888">Annex — Project Details</div>
-        <div style="font-size:12px;color:#aaa;margin-top:4px">${qt.qt_number||''} | ${formatDate(qt.qt_date)}</div>
+        <div style="font-size:12px;color:#aaa;margin-top:4px">
+          ${qt.qt_number||''}${parseInt(qt.revision||0)>0?' Rev.'+qt.revision:''} | ${formatDate(qt.qt_date)}
+        </div>
       </div>
       ${annexHtml}
     </div>` : ''}
