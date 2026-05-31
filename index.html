@@ -1349,7 +1349,13 @@ tr:hover td { background: #FFF8F0; }
 <!-- ══ SCRIPTS ══════════════════════════════════════════════ -->
 <script>
 // ── CONFIG ────────────────────────────────────────────────
-let API_URL   = localStorage.getItem('api_url') || '';
+// ═══════════════════════════════════════════════════
+//  ตั้งค่า Apps Script URL ที่นี่ (ครั้งเดียว)
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxfVCVPXQDXi7MVB77glKGjd3Fm8S_kple440P347ffIOTVjDRubtc3YBzkVtQGskjy/exec';
+// ═══════════════════════════════════════════════════
+let API_URL = DEFAULT_API_URL !== 'YOUR_APPS_SCRIPT_URL_HERE'
+  ? DEFAULT_API_URL
+  : (localStorage.getItem('api_url') || '');
 let SESSION   = JSON.parse(localStorage.getItem('session') || 'null');
 let CONFIG    = {};
 let CUSTOMERS = [];
@@ -1358,7 +1364,12 @@ let allQuotations = [];
 
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  API_URL = localStorage.getItem('api_url') || '';
+  if (DEFAULT_API_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    API_URL = DEFAULT_API_URL;
+    localStorage.setItem('api_url', DEFAULT_API_URL);
+  } else {
+    API_URL = localStorage.getItem('api_url') || '';
+  }
   document.getElementById('cfg-api-url').value = API_URL;
 
   if (!API_URL) {
