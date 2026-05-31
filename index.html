@@ -90,13 +90,19 @@
 .user-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
+  gap: 6px;
+  margin-left: 4px;
   background: rgba(255,255,255,.12);
   border: 1px solid rgba(255,255,255,.2);
   border-radius: 20px;
-  padding: 5px 14px 5px 8px;
-  font-size: 13px;
+  padding: 4px 8px 4px 4px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.user-badge .name { display: none; }
+@media (min-width: 640px) {
+  .user-badge { padding: 5px 14px 5px 8px; gap: 8px; font-size: 13px; }
+  .user-badge .name { display: inline; }
 }
 .user-badge .avatar {
   width: 26px; height: 26px;
@@ -123,11 +129,13 @@
   border: 1px solid rgba(255,255,255,.3);
   color: rgba(255,255,255,.8);
   border-radius: var(--radius);
-  padding: 5px 10px;
+  padding: 5px 8px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: all .15s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .logout-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
 
@@ -179,38 +187,49 @@ body {
 .app-header {
   background: linear-gradient(135deg, #8B0000 0%, #B71C1C 60%, #C62828 100%);
   color: #fff;
-  padding: 0 32px;
-  height: 58px;
+  padding: 0 16px;
+  height: 52px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 12px rgba(139,0,0,.35);
   border-bottom: 2px solid #F9A825;
+  overflow: hidden;
 }
-.app-header .logo { font-size: 17px; font-weight: 800; letter-spacing: .4px; display:flex; align-items:center; gap:10px; }
-.app-header .logo::before { content:''; display:block; width:28px; height:28px; background:linear-gradient(135deg,#F9A825,#FFD600); border-radius:6px; flex-shrink:0; }
-.app-header .logo span { opacity: .7; font-weight: 400; margin-left: 6px; font-size: 13px; }
-.app-header nav { margin-left: auto; display: flex; gap: 4px; }
+.app-header .logo { font-size: 15px; font-weight: 800; letter-spacing: .3px; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.app-header .logo::before { content:''; display:block; width:24px; height:24px; background:linear-gradient(135deg,#F9A825,#FFD600); border-radius:5px; flex-shrink:0; }
+.app-header .logo span { display:none; }
+.app-header nav { margin-left: auto; display: flex; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-shrink:0; }
+.app-header nav::-webkit-scrollbar { display:none; }
 .app-header nav a {
-  color: rgba(255,255,255,.8);
+  color: rgba(255,255,255,.85);
   text-decoration: none;
-  padding: 7px 16px;
+  padding: 6px 10px;
   border-radius: var(--radius);
-  font-size: 13.5px;
+  font-size: 12.5px;
   transition: all .15s;
   border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.app-header nav a:hover { background: rgba(249,168,37,.2); color: #FFD600; border-color: rgba(249,168,37,.3); }
+.app-header nav a:hover { background: rgba(249,168,37,.2); color: #FFD600; }
 .app-header nav a.active { background: rgba(249,168,37,.25); color: #FFD600; border-color: rgba(249,168,37,.5); font-weight:600; }
+@media (min-width: 768px) {
+  .app-header { padding: 0 32px; height: 58px; gap: 16px; }
+  .app-header .logo { font-size: 17px; }
+  .app-header .logo span { display: inline; }
+  .app-header nav a { padding: 7px 16px; font-size: 13.5px; }
+}
 
 .page { display: none; }
 .page.active { display: block; }
 
 /* ── Dashboard ────────────────────────────────────── */
-.dashboard { padding: 32px; max-width: 1100px; margin: 0 auto; }
+.dashboard { padding: 16px; max-width: 1100px; margin: 0 auto; }
+@media (min-width: 768px) { .dashboard { padding: 32px; } }
 .page-title {
   font-size: 22px;
   font-weight: 800;
@@ -220,7 +239,8 @@ body {
 }
 .page-subtitle { color: var(--text2); font-size: 14px; margin-bottom: 28px; }
 
-.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+@media (min-width: 768px) { .stats-row { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; } }
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -337,16 +357,22 @@ tr:hover td { background: #FFF8F0; }
 .badge-rejected{ background: var(--red-lt); color: var(--red); }
 
 /* ── Form Page ────────────────────────────────────── */
-.form-page { padding: 28px 32px; max-width: 1000px; margin: 0 auto; }
+.form-page { padding: 16px; max-width: 1000px; margin: 0 auto; }
+@media (min-width: 768px) { .form-page { padding: 28px 32px; } }
 .form-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
-.form-header h1 { font-size: 20px; font-weight: 700; }
+.form-header h1 { font-size: 16px; font-weight: 700; }
+@media (min-width: 768px) {
+  .form-header { gap: 16px; margin-bottom: 28px; padding-bottom: 20px; }
+  .form-header h1 { font-size: 20px; }
+}
 .form-header .qt-number {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 14px;
@@ -358,19 +384,24 @@ tr:hover td { background: #FFF8F0; }
   border-radius: 20px;
   letter-spacing: .3px;
 }
-.form-header .actions { margin-left: auto; display: flex; gap: 8px; }
+.form-header .actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Tabs */
 .tabs {
   display: flex;
   gap: 0;
   border-bottom: 2px solid var(--border);
-  margin-bottom: 28px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
+@media (min-width: 768px) { .tabs { margin-bottom: 28px; } }
 .tab-btn {
-  padding: 10px 22px;
+  padding: 10px 14px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   background: none;
@@ -379,6 +410,8 @@ tr:hover td { background: #FFF8F0; }
   margin-bottom: -2px;
   color: var(--text2);
   transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tab-btn.active { color: #B71C1C; border-bottom-color: #B71C1C; font-weight:600; }
 .tab-btn:hover:not(.active) { color: var(--text); }
@@ -391,10 +424,11 @@ tr:hover td { background: #FFF8F0; }
   border: 1px solid var(--border);
   border-top: 2px solid #F9A825;
   border-radius: var(--radius);
-  padding: 24px;
-  margin-bottom: 20px;
+  padding: 14px;
+  margin-bottom: 14px;
   box-shadow: var(--shadow);
 }
+@media (min-width: 768px) { .section { padding: 24px; margin-bottom: 20px; } }
 .section-title {
   font-size: 13px;
   font-weight: 700;
@@ -951,7 +985,7 @@ tr:hover td { background: #FFF8F0; }
       <!-- เอกสาร -->
       <div class="section">
         <div class="section-title">ข้อมูลเอกสาร</div>
-        <div style="display:grid;grid-template-columns:2fr 1.2fr 1fr 1.2fr 1fr;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px" class="doc-info-grid">
           <div class="field">
             <label>เลขที่เอกสาร <span class="req">*</span></label>
             <div style="display:flex;gap:6px;align-items:center">
