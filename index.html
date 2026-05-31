@@ -788,7 +788,7 @@ tr:hover td { background: #FFF8F0; }
         onkeydown="if(event.key==='Enter') doLogin()">
     </div>
     <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
-    <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:20px">
+    <p id="login-first-hint" style="text-align:center;font-size:12px;color:var(--text3);margin-top:20px;display:none">
       ครั้งแรก: username <strong>admin</strong> / password <strong>admin1234</strong>
     </p>
   </div>
@@ -855,6 +855,7 @@ tr:hover td { background: #FFF8F0; }
 <!-- ══ TOAST ═══════════════════════════════════════════════ -->
 <div id="toast-container"></div>
 
+<div id="app-content" style="display:none">
 <!-- ══ PAGE: DASHBOARD ═════════════════════════════════════ -->
 <div id="page-dashboard" class="page active">
   <div class="dashboard">
@@ -1339,6 +1340,7 @@ tr:hover td { background: #FFF8F0; }
   </div>
 </div>
 
+</div><!-- /app-content -->
 <!-- ══ SCRIPTS ══════════════════════════════════════════════ -->
 <script>
 // ── CONFIG ────────────────────────────────────────────────
@@ -1383,13 +1385,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 function showLoginPage() {
   document.getElementById('page-login').style.display = 'flex';
   document.querySelector('.app-header').style.display = 'none';
-  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  // Hide app content area — use a wrapper div approach
+  document.getElementById('app-content').style.display = 'none';
+  // Show first-run hint only if never successfully logged in
+  const hint = document.getElementById('login-first-hint');
+  if (hint) hint.style.display = localStorage.getItem('ever_logged_in') ? 'none' : 'block';
   setTimeout(() => document.getElementById('login-username').focus(), 100);
 }
 
 function hidLoginPage() {
   document.getElementById('page-login').style.display = 'none';
   document.querySelector('.app-header').style.display = 'flex';
+  document.getElementById('app-content').style.display = 'block';
 }
 
 function applySession() {
@@ -2385,6 +2392,7 @@ async function doLogin() {
     if (!result) throw new Error('เข้าสู่ระบบไม่สำเร็จ');
     SESSION = result;
     localStorage.setItem('session', JSON.stringify(SESSION));
+    localStorage.setItem('ever_logged_in', '1');
     document.getElementById('login-password').value = '';
     applySession();
     await bootApp();
