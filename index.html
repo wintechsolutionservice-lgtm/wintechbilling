@@ -777,6 +777,13 @@ tr:hover td { background: #FFF8F0; }
       <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
     </div>
     <div class="login-error" id="login-error"></div>
+    <div class="login-field" id="api-url-field">
+      <label>Apps Script URL</label>
+      <input type="url" id="login-api-url" placeholder="https://script.google.com/macros/s/..." autocomplete="off"
+        style="font-size:13px"
+        onchange="saveApiUrlFromLogin()">
+      <span style="font-size:11px;color:var(--text3);margin-top:3px;display:block">กรอกครั้งแรกเพื่อเชื่อมต่อระบบ</span>
+    </div>
     <div class="login-field">
       <label>ชื่อผู้ใช้ / Username</label>
       <input type="text" id="login-username" placeholder="username" autocomplete="username"
@@ -1380,13 +1387,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoginPage();
 });
 
+function saveApiUrlFromLogin() {
+  const url = document.getElementById('login-api-url')?.value.trim();
+  if (url) {
+    API_URL = url;
+    localStorage.setItem('api_url', url);
+    document.getElementById('cfg-api-url').value = url;
+  }
+}
+
 function showLoginPage() {
   document.getElementById('page-login').style.display = 'flex';
   document.querySelector('.app-header').style.display = 'none';
   // Hide app content area — use a wrapper div approach
   document.getElementById('app-content').style.display = 'none';
 
-  setTimeout(() => document.getElementById('login-username').focus(), 100);
+  // Pre-fill API URL field
+  const stored = localStorage.getItem('api_url') || '';
+  const apiField = document.getElementById('login-api-url');
+  const apiRow   = document.getElementById('api-url-field');
+  if (apiField) apiField.value = stored;
+  // Hide URL field if already configured
+  if (apiRow) apiRow.style.display = stored ? 'none' : 'block';
+  setTimeout(() => {
+    const focus = stored
+      ? document.getElementById('login-username')
+      : document.getElementById('login-api-url');
+    focus?.focus();
+  }, 100);
 }
 
 function hidLoginPage() {
@@ -2378,6 +2406,13 @@ async function doLogin() {
   errEl.style.display = 'none';
   if (!username || !password) {
     errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+    errEl.style.display = 'block';
+    return;
+  }
+  // Save API URL if entered
+  saveApiUrlFromLogin();
+  if (!API_URL) {
+    errEl.textContent = 'กรุณากรอก Apps Script URL ก่อน';
     errEl.style.display = 'block';
     return;
   }
