@@ -737,12 +737,19 @@ tr:hover td { background: #FFF8F0; }
       <!-- เอกสาร -->
       <div class="section">
         <div class="section-title">ข้อมูลเอกสาร</div>
-        <div class="grid-4">
+        <div style="display:grid;grid-template-columns:2fr 1.2fr 1fr 1.2fr 1fr;gap:16px">
           <div class="field">
             <label>เลขที่เอกสาร <span class="req">*</span></label>
             <div style="display:flex;gap:6px;align-items:center">
-              <input type="text" id="qt_number" style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#B71C1C;letter-spacing:.3px" oninput="document.getElementById('qt-number-display').textContent=this.value">
+              <input type="text" id="qt_number" style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#B71C1C;letter-spacing:.3px" oninput="updateQtNumberPill()">
               <button class="btn btn-secondary btn-sm btn-icon" title="สร้างเลขใหม่อัตโนมัติ" onclick="regenQtNumber()" style="flex-shrink:0">🔄</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Revision (Rev.)</label>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="number" id="qt_revision" value="0" min="0" max="99" style="width:64px;text-align:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:16px" oninput="updateQtNumberPill()">
+              <span style="font-size:12px;color:var(--text3)">0 = ต้นฉบับ</span>
             </div>
           </div>
           <div class="field">
@@ -1198,7 +1205,10 @@ function renderTable(rows) {
   }
   body.innerHTML = rows.map(q => `
     <tr>
-      <td><span class="mono">${q.qt_number || ''}</span></td>
+      <td>
+        <span class="mono">${q.qt_number || ''}</span>
+        ${parseInt(q.revision||0)>0 ? `<span style="font-size:11px;background:#FFF3CD;color:#856404;border:1px solid #F9A825;padding:1px 6px;border-radius:10px;margin-left:4px">Rev.${q.revision}</span>` : ''}
+      </td>
       <td>${formatDate(q.qt_date)}</td>
       <td>${q.customer_name_th || ''}</td>
       <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.subject_th || ''}</td>
@@ -1271,6 +1281,15 @@ function calcValidUntil() {
   document.getElementById('valid_until').value = isoToDisplay(until);
 }
 
+// ── QT NUMBER PILL ────────────────────────────────────────
+function updateQtNumberPill() {
+  const num = document.getElementById('qt_number')?.value || '';
+  const rev = parseInt(document.getElementById('qt_revision')?.value || 0);
+  const pill = document.getElementById('qt-number-display');
+  if (!pill) return;
+  pill.textContent = rev > 0 ? num + ' Rev.' + rev : num;
+}
+
 // ── REGEN QT NUMBER ──────────────────────────────────────
 async function regenQtNumber() {
   loading(true);
@@ -1297,6 +1316,8 @@ async function newQuotation() {
   });
   document.querySelector('[name="status"][value="draft"]').checked = true;
   document.getElementById('discount').value = 0;
+  const revEl2 = document.getElementById('qt_revision');
+  if (revEl2) revEl2.value = 0;
 
   // Get next number
   loading(true);
@@ -1567,6 +1588,7 @@ function buildQTBody() {
   return {
     id                  : currentQT.id || undefined,
     qt_number           : document.getElementById('qt_number').value,
+    revision            : parseInt(document.getElementById('qt_revision')?.value || 0),
     qt_date             : displayToIso(document.getElementById('qt_date').value),
     valid_days          : document.getElementById('valid_days').value,
     valid_until         : displayToIso(document.getElementById('valid_until').value),
@@ -1648,6 +1670,11 @@ async function editQuotation(id) {
     const el = document.getElementById(f);
     if (el && qt[f]) el.value = formatDate(qt[f]);
   });
+  // Restore revision
+  const revEl = document.getElementById('qt_revision');
+  if (revEl) revEl.value = qt.revision || 0;
+  updateQtNumberPill();
+
   const fields = ['qt_number','valid_days','subject_th','subject_en',
     'customer_name_th','customer_name_en','customer_address_th','customer_address_en',
     'customer_tax_id','customer_contact','customer_phone','customer_email',
