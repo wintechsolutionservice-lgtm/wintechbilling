@@ -7,6 +7,140 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* ── Login Page ────────────────────────────────────── */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7B0000 0%, #B71C1C 50%, #8B0000 100%);
+  padding: 24px;
+}
+.login-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 40px 44px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.login-logo {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-logo .logo-mark {
+  width: 64px; height: 64px;
+  background: linear-gradient(135deg, #F9A825, #FFD600);
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 900;
+  color: #7B0000;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(249,168,37,.4);
+}
+.login-logo h2 { font-size: 17px; font-weight: 800; color: #B71C1C; margin-bottom: 2px; }
+.login-logo p  { font-size: 12px; color: var(--text3); }
+.login-field { margin-bottom: 18px; }
+.login-field label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin-bottom:6px; }
+.login-field input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.login-field input:focus {
+  border-color: #B71C1C;
+  box-shadow: 0 0 0 3px rgba(183,28,28,.1);
+}
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #B71C1C, #D32F2F);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+  box-shadow: 0 3px 10px rgba(183,28,28,.3);
+}
+.login-btn:hover { background: linear-gradient(135deg, #7B0000, #B71C1C); }
+.login-btn:disabled { opacity: .6; cursor: not-allowed; }
+.login-error {
+  background: var(--red-lt);
+  color: var(--red);
+  border: 1px solid #f5c6c2;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: none;
+}
+
+/* ── User badge in header ─── */
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 20px;
+  padding: 5px 14px 5px 8px;
+  font-size: 13px;
+}
+.user-badge .avatar {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, #F9A825, #FFD600);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #7B0000;
+}
+.user-badge .name { font-weight: 600; }
+.user-badge .role-tag {
+  font-size: 10px;
+  background: rgba(249,168,37,.3);
+  color: #FFD600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.logout-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,.3);
+  color: rgba(255,255,255,.8);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.logout-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+/* ── Users management table ─── */
+.users-table { width:100%; border-collapse:collapse; font-size:14px; }
+.users-table th { background:var(--bg); padding:10px 14px; font-size:12px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--border); }
+.users-table td { padding:12px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.users-table tr:last-child td { border-bottom:none; }
+.role-admin { background:#FDECEA; color:#B71C1C; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:700; }
+.role-sales { background:#FFF8E1; color:#E65100; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:700; }
+.status-on  { color:#2D7A56; font-weight:700; font-size:12px; }
+.status-off { color:#999; font-size:12px; }
+
 /* ── Reset & Variables ────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -634,15 +768,89 @@ tr:hover td { background: #FFF8F0; }
 </head>
 <body>
 
+<!-- ══ LOGIN PAGE ═════════════════════════════════════════ -->
+<div id="page-login" class="login-page" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-mark">WT</div>
+      <h2>ระบบบัญชี Wintech</h2>
+      <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-field">
+      <label>ชื่อผู้ใช้ / Username</label>
+      <input type="text" id="login-username" placeholder="username" autocomplete="username"
+        onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
+    </div>
+    <div class="login-field">
+      <label>รหัสผ่าน / Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:20px">
+      ครั้งแรก: username <strong>admin</strong> / password <strong>admin1234</strong>
+    </p>
+  </div>
+</div>
+
 <!-- ══ APP HEADER ══════════════════════════════════════════ -->
 <header class="app-header">
   <div class="logo">ระบบบัญชี <span>Accounting System</span></div>
-  <nav>
+  <nav id="main-nav">
     <a href="#" class="active" onclick="showPage('dashboard',this)">📋 รายการเอกสาร</a>
     <a href="#" onclick="showPage('form',this)">➕ ใบเสนอราคาใหม่</a>
-    <a href="#" onclick="showPage('settings',this)">⚙️ ตั้งค่า</a>
+    <a href="#" id="nav-settings" onclick="showPage('settings',this)">⚙️ ตั้งค่า</a>
   </nav>
+  <div class="user-badge" id="user-badge" style="display:none">
+    <div class="avatar" id="user-avatar">?</div>
+    <span class="name" id="user-display-name">—</span>
+    <span class="role-tag" id="user-role-tag">—</span>
+  </div>
+  <button class="logout-btn" id="logout-btn" style="display:none;margin-left:8px" onclick="doLogout()">ออกจากระบบ</button>
 </header>
+
+<!-- ══ USER MODAL ═════════════════════════════════════════ -->
+<div id="user-modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeUserModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2 id="user-modal-title">เพิ่มผู้ใช้งาน</h2>
+      <input type="hidden" id="um-id">
+      <div class="grid-2">
+        <div class="field">
+          <label>ชื่อผู้ใช้ (username) <span class="req">*</span></label>
+          <input type="text" id="um-username" placeholder="เช่น somchai" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>ชื่อ-นามสกุล <span class="req">*</span></label>
+          <input type="text" id="um-display-name" placeholder="คุณสมชาย ใจดี">
+        </div>
+        <div class="field">
+          <label>รหัสผ่าน <span id="um-pass-label" class="req">*</span></label>
+          <input type="password" id="um-password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="new-password">
+          <span id="um-pass-hint" style="font-size:12px;color:var(--text3)">เว้นว่างไว้เพื่อไม่เปลี่ยนรหัสผ่าน</span>
+        </div>
+        <div class="field">
+          <label>สิทธิ์การใช้งาน <span class="req">*</span></label>
+          <select id="um-role" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;outline:none">
+            <option value="sales">Sales — ใบเสนอราคาเท่านั้น</option>
+            <option value="admin">Admin — ทุกหน้า + ตั้งค่า</option>
+          </select>
+        </div>
+        <div class="field col-span-2" id="um-active-row">
+          <label style="display:flex;align-items:center;gap:10px;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="um-active" checked style="width:16px;height:16px">
+            <span>เปิดใช้งานบัญชีนี้</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeUserModal()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="saveUser()">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ TOAST ═══════════════════════════════════════════════ -->
 <div id="toast-container"></div>
@@ -885,13 +1093,13 @@ tr:hover td { background: #FFF8F0; }
             <thead>
               <tr>
                 <th style="width:36px">#</th>
-                <th>รายการ (ภาษาไทย)</th>
-                <th>Description (English)</th>
+                <th>รายการ</th>
+                <th style="display:none">Description (English)</th>
                 <th style="width:80px">จำนวน</th>
-                <th style="width:90px">หน่วย (ไทย)</th>
-                <th style="width:90px">Unit (EN)</th>
-                <th style="width:120px">ราคา/หน่วย</th>
-                <th style="width:120px">จำนวนเงิน</th>
+                <th style="width:100px">หน่วย</th>
+                <th style="display:none">Unit (EN)</th>
+                <th style="width:130px">ราคา/หน่วย</th>
+                <th style="width:130px">จำนวนเงิน</th>
                 <th style="width:44px"></th>
               </tr>
             </thead>
@@ -1097,6 +1305,28 @@ tr:hover td { background: #FFF8F0; }
       </div>
     </div>
 
+    <!-- Users Management (admin only) -->
+    <div class="section" id="section-users">
+      <div class="section-title">จัดการผู้ใช้งาน</div>
+      <div style="margin-bottom:14px">
+        <button class="btn btn-primary btn-sm" onclick="showUserModal()">➕ เพิ่มผู้ใช้</button>
+      </div>
+      <table class="users-table" id="users-table">
+        <thead>
+          <tr>
+            <th>ชื่อผู้ใช้</th>
+            <th>ชื่อ-นามสกุล</th>
+            <th>สิทธิ์</th>
+            <th>สถานะ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="users-body">
+          <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3)">กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- API URL -->
     <div class="section">
       <div class="section-title">Apps Script URL</div>
@@ -1112,8 +1342,9 @@ tr:hover td { background: #FFF8F0; }
 <!-- ══ SCRIPTS ══════════════════════════════════════════════ -->
 <script>
 // ── CONFIG ────────────────────────────────────────────────
-let API_URL  = localStorage.getItem('api_url') || '';
-let CONFIG   = {};
+let API_URL   = localStorage.getItem('api_url') || '';
+let SESSION   = JSON.parse(localStorage.getItem('session') || 'null');
+let CONFIG    = {};
 let CUSTOMERS = [];
 let currentQT = { id: null, items: [], annex: [] };
 let allQuotations = [];
@@ -1122,16 +1353,71 @@ let allQuotations = [];
 document.addEventListener('DOMContentLoaded', async () => {
   API_URL = localStorage.getItem('api_url') || '';
   document.getElementById('cfg-api-url').value = API_URL;
-  if (API_URL) {
-    await loadConfig();
-    await loadCustomers();
-    await loadQuotations();
-  } else {
+
+  if (!API_URL) {
+    showLoginPage();
     toast('⚙️ กรุณาตั้งค่า Apps Script URL ก่อนใช้งาน', 'error');
-    showPage('settings', null);
+    return;
   }
-  initForm();
+
+  // Verify existing session
+  if (SESSION?.token) {
+    try {
+      loading(true);
+      const user = await api('verifyToken', {}, { token: SESSION.token });
+      loading(false);
+      if (user) {
+        SESSION = { ...SESSION, ...user };
+        applySession();
+        await bootApp();
+        return;
+      }
+    } catch(e) {
+      loading(false);
+    }
+  }
+  // No valid session → show login
+  showLoginPage();
 });
+
+function showLoginPage() {
+  document.getElementById('page-login').style.display = 'flex';
+  document.querySelector('.app-header').style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  setTimeout(() => document.getElementById('login-username').focus(), 100);
+}
+
+function hidLoginPage() {
+  document.getElementById('page-login').style.display = 'none';
+  document.querySelector('.app-header').style.display = 'flex';
+}
+
+function applySession() {
+  if (!SESSION) return;
+  // User badge
+  const name = SESSION.display_name || SESSION.username || '';
+  document.getElementById('user-display-name').textContent = name;
+  document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('user-role-tag').textContent = SESSION.role === 'admin' ? 'Admin' : 'Sales';
+  document.getElementById('user-badge').style.display = 'flex';
+  document.getElementById('logout-btn').style.display  = 'block';
+  // Hide settings nav for sales role
+  const navSettings = document.getElementById('nav-settings');
+  if (navSettings) navSettings.style.display = SESSION.role === 'admin' ? '' : 'none';
+  // Hide users section if not admin
+  const secUsers = document.getElementById('section-users');
+  if (secUsers) secUsers.style.display = SESSION.role === 'admin' ? '' : 'none';
+}
+
+async function bootApp() {
+  hidLoginPage();
+  showPage('dashboard', document.querySelector('#main-nav a'));
+  initForm();
+  await loadConfig();
+  await loadCustomers();
+  await loadQuotations();
+  if (SESSION?.role === 'admin') await loadUsers();
+}
 
 // ── API ───────────────────────────────────────────────────
 async function api(action, params = {}, body = null) {
@@ -1140,14 +1426,29 @@ async function api(action, params = {}, body = null) {
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
 
-  const options = body
-    ? { method: 'POST', body: JSON.stringify({ action, ...body }) }
+  // Attach token to body for POST requests
+  const token = SESSION?.token;
+  const postBody = body
+    ? { action, ...body, ...(token ? { token } : {}) }
+    : (token ? { action, token } : { action });
+
+  const options = (body || token)
+    ? { method: 'POST', body: JSON.stringify(postBody) }
     : { method: 'GET' };
 
   try {
     const res  = await fetch(url, options);
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'API Error');
+    if (!json.ok) {
+      if (json.error === 'Session expired' || json.error === 'Invalid token') {
+        localStorage.removeItem('session');
+        SESSION = null;
+        showLoginPage();
+        toast('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่', 'error');
+        return null;
+      }
+      throw new Error(json.error || 'API Error');
+    }
     return json.data;
   } catch (e) {
     toast('❌ ' + e.message, 'error');
@@ -1401,11 +1702,11 @@ function addItemRow(item = {}) {
   tr.id = id;
   tr.innerHTML = `
     <td style="text-align:center;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:12px">${itemSeq}</td>
-    <td><input type="text" placeholder="รายการภาษาไทย" value="${item.description_th||''}" onchange="calcTotals()"></td>
-    <td><input type="text" placeholder="English description" value="${item.description_en||''}"></td>
-    <td><input type="number" class="num-input" min="0" value="${item.qty||1}" onchange="calcRow(this)" style="width:70px"></td>
-    <td><input type="text" placeholder="ชิ้น/งาน" value="${item.unit_th||''}"></td>
-    <td><input type="text" placeholder="Piece/Job" value="${item.unit_en||''}"></td>
+    <td><input type="text" placeholder="รายการ/บริการ" value="${item.description_th||''}" onchange="calcTotals()"></td>
+    <td style="display:none"><input type="text" value="${item.description_en||''}"></td>
+    <td><input type="number" class="num-input" min="0" value="${item.qty||1}" onchange="calcRow(this)" style="width:60px"></td>
+    <td><input type="text" placeholder="ชิ้น/งาน" value="${item.unit_th||''}" style="width:80px"></td>
+    <td style="display:none"><input type="text" value="${item.unit_en||''}"></td>
     <td><input type="number" class="num-input" min="0" step="0.01" value="${item.unit_price||0}" onchange="calcRow(this)"></td>
     <td class="num-col"><input type="number" class="num-input" readonly value="${item.amount||0}" style="background:var(--bg)"></td>
     <td><button class="del-btn" onclick="removeItem('${id}')">✕</button></td>
@@ -2059,8 +2360,150 @@ async function saveSettings() {
     await loadQuotations();
     loading(false);
     showPage('dashboard', null);
+    if (SESSION?.role === 'admin') await loadUsers();
   }
   toast('✅ บันทึกการตั้งค่าเรียบร้อย');
+}
+
+// ── LOGIN / LOGOUT ────────────────────────────────────────
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-btn');
+
+  errEl.style.display = 'none';
+  if (!username || !password) {
+    errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+    errEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'กำลังเข้าสู่ระบบ...';
+  try {
+    const result = await apiNoAuth('login', { username, password });
+    if (!result) throw new Error('เข้าสู่ระบบไม่สำเร็จ');
+    SESSION = result;
+    localStorage.setItem('session', JSON.stringify(SESSION));
+    document.getElementById('login-password').value = '';
+    applySession();
+    await bootApp();
+  } catch(e) {
+    errEl.textContent = e.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'เข้าสู่ระบบ';
+}
+
+async function doLogout() {
+  if (SESSION?.token) await apiNoAuth('logout', null, { token: SESSION.token }).catch(()=>{});
+  SESSION = null;
+  localStorage.removeItem('session');
+  showLoginPage();
+  toast('ออกจากระบบเรียบร้อย');
+}
+
+// API call without token (for login/logout)
+async function apiNoAuth(action, bodyObj) {
+  if (!API_URL) throw new Error('ยังไม่ได้ตั้งค่า API URL');
+  const url = new URL(API_URL);
+  const res  = await fetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...bodyObj }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error');
+  return json.data;
+}
+
+// ── USERS MANAGEMENT ──────────────────────────────────────
+let allUsers = [];
+
+async function loadUsers() {
+  const data = await api('getUsers', {}, {});
+  if (!data) return;
+  allUsers = data;
+  renderUsers(data);
+}
+
+function renderUsers(users) {
+  const body = document.getElementById('users-body');
+  if (!body) return;
+  if (!users.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">ยังไม่มีผู้ใช้งาน</td></tr>';
+    return;
+  }
+  body.innerHTML = users.map(u => `
+    <tr>
+      <td><strong>${u.username}</strong></td>
+      <td>${u.display_name||''}</td>
+      <td><span class="role-${u.role}">${u.role==='admin'?'Admin':'Sales'}</span></td>
+      <td><span class="${String(u.active)==='TRUE'?'status-on':'status-off'}">${String(u.active)==='TRUE'?'✅ ใช้งาน':'⏸ ปิด'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">✏️ แก้ไข</button>
+          ${u.id!=='U001'?`<button class="btn btn-danger btn-sm" onclick="confirmDeleteUser('${u.id}','${u.username}')">🗑</button>`:''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showUserModal(user = null) {
+  document.getElementById('um-id').value           = user?.id || '';
+  document.getElementById('um-username').value     = user?.username || '';
+  document.getElementById('um-display-name').value = user?.display_name || '';
+  document.getElementById('um-password').value     = '';
+  document.getElementById('um-role').value         = user?.role || 'sales';
+  document.getElementById('um-active').checked     = !user || String(user.active) === 'TRUE';
+  document.getElementById('um-pass-hint').style.display = user ? 'block' : 'none';
+  document.getElementById('um-pass-label').style.display = user ? 'none' : 'inline';
+  document.getElementById('user-modal-title').textContent = user ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน';
+  document.getElementById('um-username').readOnly  = !!user;
+  document.getElementById('user-modal').style.display = 'flex';
+}
+
+function editUser(id) {
+  const user = allUsers.find(u => u.id === id);
+  if (user) showUserModal(user);
+}
+
+function closeUserModal() {
+  document.getElementById('user-modal').style.display = 'none';
+}
+
+async function saveUser() {
+  const id       = document.getElementById('um-id').value;
+  const username = document.getElementById('um-username').value.trim();
+  const dispName = document.getElementById('um-display-name').value.trim();
+  const password = document.getElementById('um-password').value;
+  const role     = document.getElementById('um-role').value;
+  const active   = document.getElementById('um-active').checked ? 'TRUE' : 'FALSE';
+
+  if (!username || !dispName) { toast('กรุณากรอกชื่อผู้ใช้และชื่อ-นามสกุล', 'error'); return; }
+  if (!id && !password)       { toast('กรุณากำหนดรหัสผ่าน', 'error'); return; }
+  if (password && password.length < 6) { toast('รหัสผ่านอย่างน้อย 6 ตัวอักษร', 'error'); return; }
+
+  const body = { id: id||undefined, username, display_name: dispName, role, active };
+  if (password) body.new_password = password;
+
+  loading(true);
+  await api('saveUser', {}, body);
+  await loadUsers();
+  loading(false);
+  closeUserModal();
+  toast('✅ บันทึกผู้ใช้เรียบร้อย');
+}
+
+async function confirmDeleteUser(id, username) {
+  if (!confirm(`ลบผู้ใช้ "${username}" ?
+การลบไม่สามารถยกเลิกได้`)) return;
+  loading(true);
+  await api('deleteUser', {}, { id });
+  await loadUsers();
+  loading(false);
+  toast('🗑 ลบผู้ใช้เรียบร้อย');
 }
 
 // ── UTILITIES ─────────────────────────────────────────────
