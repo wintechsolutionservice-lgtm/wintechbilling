@@ -740,7 +740,10 @@ tr:hover td { background: #FFF8F0; }
         <div class="grid-4">
           <div class="field">
             <label>เลขที่เอกสาร <span class="req">*</span></label>
-            <input type="text" id="qt_number" readonly>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="text" id="qt_number" style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#B71C1C;letter-spacing:.3px" oninput="document.getElementById('qt-number-display').textContent=this.value">
+              <button class="btn btn-secondary btn-sm btn-icon" title="สร้างเลขใหม่อัตโนมัติ" onclick="regenQtNumber()" style="flex-shrink:0">🔄</button>
+            </div>
           </div>
           <div class="field">
             <label>วันที่ <span class="req">*</span></label>
@@ -1005,7 +1008,7 @@ tr:hover td { background: #FFF8F0; }
               <div style="text-align:right">
                 <div style="font-size:18px;font-weight:800;color:#B71C1C">ใบเสนอราคา</div>
                 <div style="font-size:11px;color:#888">QUOTATION</div>
-                <div style="font-size:11px;margin-top:6px;font-family:'IBM Plex Mono',monospace;color:#B71C1C;font-weight:700">QT-2568-0001</div>
+                <div style="font-size:11px;margin-top:6px;font-family:'IBM Plex Mono',monospace;color:#B71C1C;font-weight:700">${document.getElementById('qt-number-example')?.textContent||'WT-202605-00001'}</div>
               </div>
             </div>
           </div>
@@ -1028,6 +1031,28 @@ tr:hover td { background: #FFF8F0; }
         <div class="field"><label>อีเมล</label><input type="text" id="cfg-company_email" oninput="updateHeaderPreview()"></div>
         <div class="field"><label>เว็บไซต์</label><input type="text" id="cfg-company_website"></div>
         <div class="field col-span-2"><label>เงื่อนไขการชำระเงินเริ่มต้น</label><input type="text" id="cfg-payment_terms" placeholder="ชำระภายใน 30 วัน นับจากวันที่ได้รับใบแจ้งหนี้"></div>
+      </div>
+    </div>
+
+    <!-- Document numbering -->
+    <div class="section">
+      <div class="section-title">รูปแบบเลขที่เอกสาร</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Prefix ใบเสนอราคา</label>
+          <input type="text" id="cfg-qt_prefix" value="WT" placeholder="WT" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();updateQtNumberExample()">
+          <span style="font-size:12px;color:var(--text3);margin-top:4px">ตัวอย่าง: <strong id="qt-number-example" style="color:#B71C1C;font-family:'IBM Plex Mono',monospace">WT-202605-00001</strong></span>
+        </div>
+        <div class="field">
+          <label>เลขที่ล่าสุด (เดือนปัจจุบัน)</label>
+          <input type="number" id="cfg-qt_running" min="0" placeholder="0"
+            title="ปรับค่าเริ่มต้น — ระบบจะออกเลขถัดไปจากค่านี้" oninput="updateQtNumberExample()">
+          <span style="font-size:12px;color:var(--text3);margin-top:4px">ตั้งค่าเพื่อเริ่มนับต่อจากเลขที่มีอยู่</span>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:var(--amber-lt);border:1px solid #F9A825;border-radius:var(--radius);font-size:13px">
+        📌 <strong>รูปแบบ:</strong> <code style="font-family:'IBM Plex Mono',monospace">[PREFIX]-[YYYYMM]-[NNNNN]</code>
+        &nbsp;→&nbsp; เลขที่จะ <strong>รีเซ็ตเป็น 00001 อัตโนมัติเมื่อขึ้นเดือนใหม่</strong>
       </div>
     </div>
 
@@ -1127,6 +1152,7 @@ async function loadConfig() {
     if (zone) showLogoThumb(CONFIG.company_logo);
   }
   updateHeaderPreview();
+  updateQtNumberExample();
 }
 
 async function loadCustomers() {
@@ -1207,6 +1233,17 @@ function calcValidUntil() {
     const until = new Date(d);
     until.setDate(until.getDate() + days);
     document.getElementById('valid_until').value = until.toISOString().split('T')[0];
+  }
+}
+
+// ── REGEN QT NUMBER ──────────────────────────────────────
+async function regenQtNumber() {
+  loading(true);
+  const num = await api('nextQtNumber');
+  loading(false);
+  if (num) {
+    document.getElementById('qt_number').value = num;
+    document.getElementById('qt-number-display').textContent = num;
   }
 }
 
@@ -1833,11 +1870,22 @@ function updateHeaderPreview() {
       <div style="text-align:right;min-width:140px">
         <div style="font-size:18px;font-weight:800;color:#B71C1C">ใบเสนอราคา</div>
         <div style="font-size:11px;color:#888">QUOTATION</div>
-        <div style="font-size:11px;margin-top:6px;font-family:'IBM Plex Mono',monospace;color:#B71C1C;font-weight:700">QT-2568-0001</div>
+        <div style="font-size:11px;margin-top:6px;font-family:'IBM Plex Mono',monospace;color:#B71C1C;font-weight:700">${document.getElementById('qt-number-example')?.textContent||'WT-202605-00001'}</div>
       </div>
     </div>`;
 
   if (logo) showLogoThumb(logo);
+}
+
+// ── QT NUMBER PREVIEW (settings page) ────────────────────
+function updateQtNumberExample() {
+  const prefix = (document.getElementById('cfg-qt_prefix')?.value || 'WT').toUpperCase();
+  const now    = new Date();
+  const ym     = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0');
+  const running = parseInt(document.getElementById('cfg-qt_running')?.value || 0);
+  const next   = String(running + 1).padStart(5, '0');
+  const el = document.getElementById('qt-number-example');
+  if (el) el.textContent = prefix + '-' + ym + '-' + next;
 }
 
 // ── SETTINGS SAVE ─────────────────────────────────────────
@@ -1859,6 +1907,7 @@ async function saveSettings() {
       'company_tax_id','company_branch','company_phone','company_fax',
       'company_email','company_website','payment_terms',
       'bank_name','bank_account','bank_account_name','bank_account_type','bank_branch',
+      'qt_prefix','qt_running',
     ];
     const updates = { logo_height: logoH };
     keys.forEach(k => {
