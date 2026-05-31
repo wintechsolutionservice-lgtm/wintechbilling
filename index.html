@@ -249,7 +249,8 @@ body {
   box-shadow: var(--shadow);
 }
 .stat-card .label { font-size: 12px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-.stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
+.stat-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
+@media (min-width: 768px) { .stat-card .value { font-size: 28px; } }
 .stat-card .sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
 .stat-card.featured { background: linear-gradient(135deg, #B71C1C, #D32F2F); color:#fff; border-color: #8B0000; }
 .stat-card.featured .label { color: rgba(255,255,255,.7); }
@@ -322,6 +323,8 @@ body {
   overflow: hidden;
   border-top: 3px solid #F9A825;
 }
+.card-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.card-scroll table { min-width: 600px; }
 table { width: 100%; border-collapse: collapse; }
 th {
   text-align: left;
@@ -449,10 +452,16 @@ tr:hover td { background: #FFF8F0; }
 }
 
 /* Grid */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
-.col-span-2 { grid-column: span 2; }
+.grid-2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.col-span-2 { grid-column: span 1; }
+@media (min-width: 600px) {
+  .grid-2 { grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+  .col-span-2 { grid-column: span 2; }
+}
 
 /* Form fields */
 .field { display: flex; flex-direction: column; gap: 5px; }
@@ -493,7 +502,8 @@ tr:hover td { background: #FFF8F0; }
 }
 
 /* ── Items Table ──────────────────────────────────── */
-.items-table-wrap { overflow-x: auto; }
+.items-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.items-table { min-width: 480px; }
 .items-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .items-table th {
   background: var(--bg);
@@ -544,7 +554,8 @@ tr:hover td { background: #FFF8F0; }
   justify-content: flex-end;
 }
 .totals-inner {
-  min-width: 340px;
+  width: 100%;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -705,24 +716,28 @@ tr:hover td { background: #FFF8F0; }
   color: #fff;
 }
 .preview-toolbar .preview-title { font-size: 14px; opacity: .8; }
-.preview-toolbar .preview-actions { margin-left: auto; display: flex; gap: 8px; }
+.preview-toolbar .preview-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 .preview-frame {
   background: var(--bg);
-  padding: 32px;
+  padding: 16px 8px;
   min-height: calc(100vh - 56px - 52px);
   display: flex;
   justify-content: center;
+  overflow-x: auto;
 }
+@media (min-width: 768px) { .preview-frame { padding: 32px; } }
 .print-page {
   background: #fff;
-  width: 794px;
+  width: 100%;
+  max-width: 794px;
   min-height: 1123px;
-  padding: 48px 56px;
+  padding: 24px 16px;
   box-shadow: 0 4px 24px rgba(0,0,0,.12);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
   position: relative;
 }
+@media (min-width: 794px) { .print-page { padding: 48px 56px; font-size: 13px; } }
 
 /* ── Toast ────────────────────────────────────────── */
 #toast-container {
@@ -938,7 +953,7 @@ tr:hover td { background: #FFF8F0; }
       <button class="btn btn-primary" onclick="newQuotation()">➕ สร้างใหม่</button>
     </div>
 
-    <div class="card">
+    <div class="card card-scroll">
       <table>
         <thead>
           <tr>
