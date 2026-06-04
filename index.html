@@ -2343,50 +2343,43 @@ function renderPreview(qt) {
 
 function printDoc() {
   const content = document.getElementById('print-content').innerHTML;
-  // Mobile: open new tab and print (iframe print blocked on iOS/Android)
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (isMobile) {
-    const win = window.open('', '_blank');
-    if (!win) { toast('อนุญาต Pop-up ในเบราว์เซอร์ก่อนครับ', 'error'); return; }
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-      <style>
-        * { box-sizing:border-box; } body { font-family:'Sarabun',sans-serif; margin:0; padding:16px; font-size:12px; }
-        @page { margin:10mm; } @media print { body { padding:0; } }
-        button.print-btn { display:block; width:100%; padding:14px; background:#B71C1C; color:#fff; border:none; font-size:16px; font-family:'Sarabun',sans-serif; border-radius:6px; margin-bottom:16px; cursor:pointer; }
-        .no-print { margin-bottom:16px; }
-        @media print { .no-print { display:none; } }
-      </style>
-    </head><body>
-      <div class="no-print">
-        <button class="print-btn" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
-      </div>
-      ${content}
-    </body></html>`);
-    win.document.close();
-    return;
-  }
-  // Desktop: use hidden iframe
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;opacity:0';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  const qtNum   = document.getElementById('qt-number-display')?.textContent || 'quotation';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
-      * { box-sizing: border-box; }
-      body { font-family:'Sarabun',sans-serif; margin:0; padding:24px 40px; font-size:13px; }
-      @page { margin: 15mm; }
+      * { box-sizing:border-box; margin:0; padding:0; }
+      body { font-family:'Sarabun',sans-serif; padding:20px; font-size:13px; background:#fff; }
+      @page { margin:12mm; size:A4; }
+      .no-print { background:#B71C1C; padding:12px 20px; margin:-20px -20px 20px; display:flex; gap:10px; align-items:center; }
+      .no-print button { padding:10px 20px; border:none; border-radius:6px; font-family:'Sarabun',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
+      .print-btn  { background:#FFD600; color:#7B0000; }
+      .close-btn  { background:rgba(255,255,255,.2); color:#fff; }
+      .no-print span { color:rgba(255,255,255,.8); font-size:13px; }
+      @media print {
+        .no-print { display:none !important; }
+        body { padding:0; }
+      }
     </style>
-  </head><body>${content}</body></html>`);
-  doc.close();
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
-  }, 600);
+  </head><body>
+    <div class="no-print">
+      <button class="print-btn" onclick="window.print()">🖨 พิมพ์ / Save PDF</button>
+      <button class="close-btn" onclick="window.close()">✕ ปิด</button>
+      <span>iOS: กด Share → Save to Files เพื่อบันทึก PDF</span>
+    </div>
+    ${content}
+  </body></html>`;
+
+  // Use Blob URL — works on iOS Safari without popup blocker issues
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.target   = '_blank';
+  a.rel      = 'noopener';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // ── DELETE ────────────────────────────────────────────────
