@@ -1039,7 +1039,7 @@ tr:hover td { background: #FFF8F0; }
         </div>
         <div class="grid-2" style="margin-top:14px">
           <div class="field">
-            <label>หัวข้อ/เรื่อง (ภาษาไทย) <span class="req">*</span></label>
+            <label>โครงการ (ภาษาไทย) <span class="req">*</span></label>
             <input type="text" id="subject_th" placeholder="เช่น เสนอราคาพัฒนาระบบซอฟต์แวร์">
           </div>
           <div class="field">
@@ -2262,14 +2262,14 @@ function renderPreview(qt) {
             <td style="color:#888;padding:2px 6px 2px 0;text-align:right">ใช้ได้ถึง:</td>
             <td style="font-weight:600;padding:2px 0">${formatDate(qt.valid_until)}</td>
           </tr>
-          ${qt.payment_terms_th ? `<tr><td style="color:#888;padding:2px 6px 2px 0;text-align:right">เงื่อนไข:</td><td style="padding:2px 0">${qt.payment_terms_th}</td></tr>` : ''}
+
         </table>
       </div>
     </div>
 
     <!-- SUBJECT -->
     <div style="margin-bottom:10px;font-size:13px">
-      <span style="font-weight:700">เรื่อง: </span>${qt.subject_th||''}
+      <span style="font-weight:700">โครงการ: </span>${qt.subject_th||''}
       ${qt.subject_en?`<span style="color:#888;font-size:11px"> / ${qt.subject_en}</span>`:''}
     </div>
 
