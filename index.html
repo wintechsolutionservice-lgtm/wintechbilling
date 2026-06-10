@@ -2313,7 +2313,7 @@ function renderPreview(qt) {
     </div>
 
     <!-- SIGNATURE -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:32px;font-size:12px">
+    <div class="sig-block" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:32px;font-size:12px">
       <div style="text-align:center">
         ${sig1 ? `<img src="${sig1}" style="max-height:60px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block;margin-left:auto;margin-right:auto">` : '<div style="height:60px"></div>'}
         <div style="border-top:1px solid #999;padding-top:8px">ผู้เสนอราคา / Authorized Signature</div>
@@ -2371,69 +2371,81 @@ function printDoc() {
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
       * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family:'Sarabun',sans-serif; padding:20px; font-size:13px; background:#fff; }
+      body { font-family:'Sarabun',sans-serif; font-size:13px; background:#fff; }
+      /* ── Running header via @page margin box ── */
       @page {
-        margin:12mm;
-        size:A4;
-        @top-center { content: ''; }
-      }
-      /* Repeat header on every page via CSS */
-      .page-header-repeat {
-        display: table-header-group;
-      }
-      .doc-table {
-        display: table;
-        width: 100%;
-      }
-      .doc-body {
-        display: table-row-group;
-      }
-      /* Page number in footer */
-      @page { margin:12mm 12mm 18mm; }
-      @media print {
-        .no-print { display:none !important; }
-        body { padding:0; }
-        /* Footer with page number */
-        body::after {
-          content: '';
-          display: block;
+        size: A4;
+        margin: 28mm 12mm 18mm 12mm;
+        @top-left {
+          content: element(running-header);
+          vertical-align: bottom;
         }
-        .page-num {
-          position: fixed;
-          bottom: 6mm;
-          right: 12mm;
+        @bottom-right {
+          content: "หน้า " counter(page) " / " counter(pages);
           font-size: 10px;
           color: #aaa;
-          font-family: 'IBM Plex Mono', monospace;
+          font-family: 'Sarabun', sans-serif;
         }
-        .page-num::after { content: counter(page) ' / ' counter(pages); }
       }
-      .no-print { background:#B71C1C; padding:12px 20px; margin:-20px -20px 20px; display:flex; gap:10px; align-items:center; }
+      @page :first {
+        margin-top: 12mm;
+        @top-left { content: ''; }
+      }
+      /* Running header element */
+      #running-header {
+        position: running(running-header);
+        width: 100%;
+        border-bottom: 2px solid #B71C1C;
+        padding-bottom: 4px;
+        margin-bottom: 6px;
+        font-size: 11px;
+      }
+      /* Fallback for browsers not supporting CSS running elements */
+      @media print {
+        .no-print { display:none !important; }
+        /* thead repeats on every page */
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr    { page-break-inside: avoid; }
+        /* Signature: keep together */
+        .sig-block { page-break-inside: avoid; }
+      }
+      .no-print {
+        background:#B71C1C; padding:12px 20px;
+        display:flex; gap:10px; align-items:center;
+        position: sticky; top:0; z-index:99;
+      }
       .no-print button { padding:10px 20px; border:none; border-radius:6px; font-family:'Sarabun',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
-      .print-btn  { background:#FFD600; color:#7B0000; }
-      .close-btn  { background:rgba(255,255,255,.2); color:#fff; }
-      .no-print span { color:rgba(255,255,255,.8); font-size:13px; }
-      /* Items table thead repeats on each page */
+      .print-btn { background:#FFD600; color:#7B0000; }
+      .close-btn { background:rgba(255,255,255,.2); color:#fff; }
+      .no-print span { color:rgba(255,255,255,.8); font-size:12px; }
       table { border-collapse:collapse; }
-      thead { display:table-header-group; }
-      tfoot { display:table-footer-group; }
-      tr { page-break-inside:avoid; }
+      .sig-block { margin-top: 32px; }
     </style>
   </head><body>
+    <!-- Running header (shown on page 2+) -->
+    <div id="running-header">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${(cfg.company_logo||'') ? `<img src="${cfg.company_logo}" style="max-height:24px;object-fit:contain">` : ''}
+          <span style="font-weight:800;color:#B71C1C">${cfg.company_name_th||''}</span>
+          <span style="color:#888;font-size:10px">${cfg.company_name_en||''}</span>
+        </div>
+        <div style="text-align:right">
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C;font-size:12px">${qtNum}</span>
+          <span style="color:#888;margin-left:6px;font-size:11px">ใบเสนอราคา</span>
+        </div>
+      </div>
+    </div>
+
     <div class="no-print">
       <button class="print-btn" onclick="window.print()">🖨 พิมพ์ / Save PDF</button>
       <button class="close-btn" onclick="window.close()">✕ ปิด</button>
       <span>iOS: Share → Save to Files</span>
     </div>
-    <!-- Fixed header repeats on every printed page -->
-    <div class="page-num"></div>
-    <div class="doc-table">
-      <div class="page-header-repeat">
-        ${repeatHeader}
-      </div>
-      <div class="doc-body">
-        ${content}
-      </div>
+
+    <div style="padding:16px">
+      ${content}
     </div>
   </body></html>`;
 
