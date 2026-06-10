@@ -2345,30 +2345,96 @@ function printDoc() {
   const content = document.getElementById('print-content').innerHTML;
   const qtNum   = document.getElementById('qt-number-display')?.textContent || 'quotation';
 
+  // Build compact header for page 2+
+  const cfg = CONFIG;
+  const sig1 = SIG1 || '';
+  const logoHtml = (cfg.company_logo||'')
+    ? `<img src="${cfg.company_logo}" style="max-height:32px;max-width:70px;object-fit:contain;vertical-align:middle;margin-right:8px">`
+    : '';
+  const repeatHeader = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:2px solid #B71C1C;margin-bottom:8px;font-size:11px">
+      <div style="display:flex;align-items:center">
+        ${logoHtml}
+        <div>
+          <span style="font-weight:800;color:#B71C1C">${cfg.company_name_th||''}</span>
+          <span style="color:#888;margin-left:8px">${cfg.company_name_en||''}</span>
+        </div>
+      </div>
+      <div style="text-align:right;color:#888">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C">${qtNum}</span>
+        <span style="margin-left:8px">ใบเสนอราคา / Quotation</span>
+      </div>
+    </div>`;
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
       * { box-sizing:border-box; margin:0; padding:0; }
       body { font-family:'Sarabun',sans-serif; padding:20px; font-size:13px; background:#fff; }
-      @page { margin:12mm; size:A4; }
+      @page {
+        margin:12mm;
+        size:A4;
+        @top-center { content: ''; }
+      }
+      /* Repeat header on every page via CSS */
+      .page-header-repeat {
+        display: table-header-group;
+      }
+      .doc-table {
+        display: table;
+        width: 100%;
+      }
+      .doc-body {
+        display: table-row-group;
+      }
+      /* Page number in footer */
+      @page { margin:12mm 12mm 18mm; }
+      @media print {
+        .no-print { display:none !important; }
+        body { padding:0; }
+        /* Footer with page number */
+        body::after {
+          content: '';
+          display: block;
+        }
+        .page-num {
+          position: fixed;
+          bottom: 6mm;
+          right: 12mm;
+          font-size: 10px;
+          color: #aaa;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .page-num::after { content: counter(page) ' / ' counter(pages); }
+      }
       .no-print { background:#B71C1C; padding:12px 20px; margin:-20px -20px 20px; display:flex; gap:10px; align-items:center; }
       .no-print button { padding:10px 20px; border:none; border-radius:6px; font-family:'Sarabun',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
       .print-btn  { background:#FFD600; color:#7B0000; }
       .close-btn  { background:rgba(255,255,255,.2); color:#fff; }
       .no-print span { color:rgba(255,255,255,.8); font-size:13px; }
-      @media print {
-        .no-print { display:none !important; }
-        body { padding:0; }
-      }
+      /* Items table thead repeats on each page */
+      table { border-collapse:collapse; }
+      thead { display:table-header-group; }
+      tfoot { display:table-footer-group; }
+      tr { page-break-inside:avoid; }
     </style>
   </head><body>
     <div class="no-print">
       <button class="print-btn" onclick="window.print()">🖨 พิมพ์ / Save PDF</button>
       <button class="close-btn" onclick="window.close()">✕ ปิด</button>
-      <span>iOS: กด Share → Save to Files เพื่อบันทึก PDF</span>
+      <span>iOS: Share → Save to Files</span>
     </div>
-    ${content}
+    <!-- Fixed header repeats on every printed page -->
+    <div class="page-num"></div>
+    <div class="doc-table">
+      <div class="page-header-repeat">
+        ${repeatHeader}
+      </div>
+      <div class="doc-body">
+        ${content}
+      </div>
+    </div>
   </body></html>`;
 
   // Use Blob URL — works on iOS Safari without popup blocker issues
