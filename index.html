@@ -2281,8 +2281,8 @@ function renderPreview(qt) {
     <!-- ITEMS TABLE -->
     <table class="print-table" style="margin-bottom:0">
       <thead>
-        <!-- Mini header row — repeats on every page (page 2+) -->
-        <tr class="thead-company-row" style="background:#fff;border-bottom:2px solid #B71C1C">
+        <!-- Mini header row — hidden on screen, repeats page 2+ when printing -->
+        <tr class="thead-company-row" style="display:none;background:#fff;border-bottom:2px solid #B71C1C">
           <td colspan="6" style="padding:4px 6px;border:none">
             <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px">
               <div style="display:flex;align-items:center;gap:6px">
@@ -2435,8 +2435,8 @@ function printDoc() {
         tfoot { display:table-footer-group; }
         tr    { page-break-inside:avoid; }
         .sig-block { page-break-inside:avoid; }
-        /* Hide company mini-header on first page — shown from page 2 via thead repeat */
-        .thead-company-row { display:none; }
+        /* Show mini-header only when thead repeats (page 2+) */
+        .thead-company-row { display:table-row !important; }
         /* page number bottom-right */
         .footer-pagenum {
           position: fixed;
