@@ -1689,16 +1689,23 @@ function initForm() {
 }
 
 function isoToDisplay(dateOrStr) {
-  let dt;
-  if (dateOrStr instanceof Date) { dt = dateOrStr; }
-  else {
-    const [y,m,d] = String(dateOrStr).split('T')[0].split('-').map(Number);
-    dt = new Date(y, m-1, d);
+  if (!dateOrStr) return '';
+  if (dateOrStr instanceof Date) {
+    // Use local date parts — avoid UTC shift
+    const dd = String(dateOrStr.getDate()).padStart(2,'0');
+    const mm = String(dateOrStr.getMonth()+1).padStart(2,'0');
+    const yy = dateOrStr.getFullYear() + 543;
+    return dd + '/' + mm + '/' + yy;
   }
-  const d = String(dt.getDate()).padStart(2,'0');
-  const m = String(dt.getMonth()+1).padStart(2,'0');
-  const y = dt.getFullYear() + 543;
-  return d + '/' + m + '/' + y;
+  // Parse ISO string directly by splitting — never pass to new Date() to avoid timezone shift
+  const datePart = String(dateOrStr).split('T')[0]; // "2026-06-13"
+  const parts = datePart.split('-');
+  if (parts.length !== 3) return '';
+  const y = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  const d = parseInt(parts[2]);
+  if (!y || !m || !d) return '';
+  return String(d).padStart(2,'0') + '/' + String(m).padStart(2,'0') + '/' + (y + 543);
 }
 
 function onQtDateInput(el) {
@@ -2960,10 +2967,14 @@ function fmtNum(n) {
 function formatDate(d) {
   if (!d) return '';
   try {
-    // Parse safely (avoid timezone shift)
-    const [y, m, day] = String(d).split('T')[0].split('-').map(Number);
-    const buddhistYear = y + 543;
-    return String(day).padStart(2,'0') + '/' + String(m).padStart(2,'0') + '/' + buddhistYear;
+    const datePart = String(d).split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length !== 3) return d;
+    const y   = parseInt(parts[0]);
+    const m   = parseInt(parts[1]);
+    const day = parseInt(parts[2]);
+    if (!y || !m || !day) return d;
+    return String(day).padStart(2,'0') + '/' + String(m).padStart(2,'0') + '/' + (y + 543);
   } catch(e) { return d; }
 }
 
