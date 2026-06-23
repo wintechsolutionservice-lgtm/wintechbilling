@@ -1438,7 +1438,7 @@ let SIG2 = localStorage.getItem('sig2') || '';
 
 // ═══════════════════════════════════════════════════
 //  ตั้งค่า Apps Script URL ที่นี่ (ครั้งเดียว)
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxfVCVPXQDXi7MVB77glKGjd3Fm8S_kple440P347ffIOTVjDRubtc3YBzkVtQGskjy/exec';
+const DEFAULT_API_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
 // ═══════════════════════════════════════════════════
 let API_URL = DEFAULT_API_URL !== 'YOUR_APPS_SCRIPT_URL_HERE'
   ? DEFAULT_API_URL
@@ -2288,22 +2288,6 @@ function renderPreview(qt) {
     <!-- ITEMS TABLE -->
     <table class="print-table" style="margin-bottom:0">
       <thead>
-        <!-- Mini header row — hidden on screen, repeats page 2+ when printing -->
-        <tr class="thead-company-row" style="display:none;background:#fff;border-bottom:2px solid #B71C1C">
-          <td colspan="6" style="padding:4px 6px;border:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px">
-              <div style="display:flex;align-items:center;gap:6px">
-                ${(cfg.company_logo||'') ? `<img src="${cfg.company_logo}" style="max-height:20px;object-fit:contain">` : ''}
-                <strong style="color:#B71C1C;font-size:11px">${cfg.company_name_th||''}</strong>
-                <span style="color:#aaa">${cfg.company_name_en||''}</span>
-              </div>
-              <div style="text-align:right">
-                <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C">${qt.qt_number||''}${parseInt(qt.revision||0)>0?' Rev.'+qt.revision:''}</span>
-                <span style="color:#aaa;margin-left:4px">ใบเสนอราคา</span>
-              </div>
-            </div>
-          </td>
-        </tr>
         <tr>
           <th style="width:36px;text-align:center">#</th>
           <th style="text-align:left">รายการ / Description</th>
@@ -2434,7 +2418,13 @@ function printDoc() {
       * { box-sizing:border-box; margin:0; padding:0; }
       body { font-family:'Sarabun',sans-serif; font-size:13px; background:#fff; }
 
-      @page { size:A4; margin:12mm 12mm 16mm; }
+      @page {
+        size: A4;
+        margin: 12mm 12mm 16mm 12mm;
+      }
+      @page :first {
+        margin-top: 12mm;
+      }
 
       @media print {
         .no-print { display:none !important; }
@@ -2442,8 +2432,7 @@ function printDoc() {
         tfoot { display:table-footer-group; }
         tr    { page-break-inside:avoid; }
         .sig-block { page-break-inside:avoid; }
-        /* Show mini-header only when thead repeats (page 2+) */
-        .thead-company-row { display:table-row !important; }
+
         /* page number bottom-right */
         .footer-pagenum {
           position: fixed;
