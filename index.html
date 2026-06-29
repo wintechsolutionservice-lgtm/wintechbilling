@@ -224,6 +224,52 @@ body {
   .app-header nav a { padding: 7px 16px; font-size: 13.5px; }
 }
 
+/* ── Sidebar / Drawer ─────────────────────────────── */
+.menu-toggle {
+  background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28);
+  color:#fff; font-size:18px; line-height:1; width:38px; height:38px;
+  border-radius:8px; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.menu-toggle:hover { background: rgba(249,168,37,.3); }
+.sidebar {
+  position: fixed; top:0; left:0; bottom:0; width: 244px;
+  background: linear-gradient(160deg,#7B0000 0%,#9A1414 55%,#B71C1C 100%);
+  color:#fff; z-index:300; display:flex; flex-direction:column;
+  transform: translateX(-100%); transition: transform .25s ease;
+  box-shadow: 2px 0 18px rgba(0,0,0,.25); border-right:2px solid #F9A825;
+}
+.sidebar.open { transform: translateX(0); }
+.sidebar-brand {
+  display:flex; align-items:center; gap:10px; padding:16px 18px;
+  border-bottom:1px solid rgba(255,255,255,.12); font-weight:800; font-size:16px;
+}
+.sidebar-brand::before {
+  content:''; width:30px; height:30px; border-radius:7px; flex-shrink:0;
+  background:linear-gradient(135deg,#F9A825,#FFD600);
+}
+.sidebar-brand small { display:block; font-size:10.5px; font-weight:500; color:rgba(255,255,255,.6); letter-spacing:.4px; }
+.sidebar-nav { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:2px; }
+.sidebar-nav a {
+  color: rgba(255,255,255,.82); text-decoration:none; padding:11px 14px;
+  border-radius:8px; font-size:14px; display:flex; align-items:center; gap:10px;
+  border:1px solid transparent; transition: all .15s; cursor:pointer;
+}
+.sidebar-nav a:hover { background: rgba(249,168,37,.18); color:#FFD600; }
+.sidebar-nav a.active { background: rgba(249,168,37,.26); color:#FFD600; border-color: rgba(249,168,37,.5); font-weight:600; }
+.sidebar-sep { font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.4); padding:14px 14px 4px; font-weight:700; }
+.sidebar-foot { border-top:1px solid rgba(255,255,255,.12); padding:12px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sidebar-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:250; display:none; }
+.sidebar-backdrop.show { display:block; }
+
+@media (min-width: 980px) {
+  .sidebar { transform: translateX(0); }
+  .sidebar-backdrop { display:none !important; }
+  .menu-toggle { display:none; }
+  .app-header { margin-left: 244px; }
+  #app-content { margin-left: 244px; }
+}
+
 .page { display: none; }
 .page.active { display: block; }
 
@@ -854,21 +900,38 @@ tr:hover td { background: #FFF8F0; }
   </div>
 </div>
 
-<!-- ══ APP HEADER ══════════════════════════════════════════ -->
-<header class="app-header">
+<!-- ══ APP HEADER (slim top bar) ═══════════════════════════ -->
+<header class="app-header" id="app-header" style="display:none">
+  <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="เมนู">☰</button>
   <div class="logo">ระบบบัญชี <span>Accounting System</span></div>
-  <nav id="main-nav">
-    <a href="#" class="active" onclick="showPage('dashboard',this)">📋 รายการเอกสาร</a>
-    <a href="#" onclick="showPage('form',this)">➕ ใบเสนอราคาใหม่</a>
-    <a href="#" id="nav-settings" onclick="showPage('settings',this)">⚙️ ตั้งค่า</a>
-  </nav>
-  <div class="user-badge" id="user-badge" style="display:none">
-    <div class="avatar" id="user-avatar">?</div>
-    <span class="name" id="user-display-name">—</span>
-    <span class="role-tag" id="user-role-tag">—</span>
-  </div>
-  <button class="logout-btn" id="logout-btn" style="display:none;margin-left:8px" onclick="doLogout()">ออกจากระบบ</button>
 </header>
+
+<!-- ══ SIDEBAR ═════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div>Wintech<br><small>ACCOUNTING SYSTEM</small></div>
+  </div>
+  <nav id="main-nav" class="sidebar-nav">
+    <div class="sidebar-sep">เอกสาร</div>
+    <a class="active" onclick="go('dashboard',this)">📋 ใบเสนอราคา</a>
+    <a onclick="goDoc('invoice',this)">🧾 ใบแจ้งหนี้</a>
+    <a onclick="goDoc('taxinvoice',this)">🧾 ใบกำกับภาษี</a>
+    <a onclick="goDoc('billing',this)">📑 ใบวางบิล</a>
+    <a onclick="goDoc('receipt',this)">💵 ใบเสร็จรับเงิน</a>
+    <div class="sidebar-sep">ข้อมูล</div>
+    <a onclick="go('customers',this)">👥 ลูกค้า</a>
+    <a id="nav-settings" onclick="go('settings',this)">⚙️ ตั้งค่า</a>
+  </nav>
+  <div class="sidebar-foot" id="sidebar-foot" style="display:none">
+    <div class="user-badge" id="user-badge">
+      <div class="avatar" id="user-avatar">?</div>
+      <span class="name" id="user-display-name">—</span>
+      <span class="role-tag" id="user-role-tag">—</span>
+    </div>
+    <button class="logout-btn" id="logout-btn" onclick="doLogout()">ออกจากระบบ</button>
+  </div>
+</aside>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
 <!-- ══ USER MODAL ═════════════════════════════════════════ -->
 <div id="user-modal" style="display:none">
@@ -1371,9 +1434,27 @@ tr:hover td { background: #FFF8F0; }
           <span style="font-size:12px;color:var(--text3);margin-top:4px">ตั้งค่าเพื่อเริ่มนับต่อจากเลขที่มีอยู่</span>
         </div>
       </div>
+      <div class="grid-4" style="margin-top:14px">
+        <div class="field">
+          <label>Prefix ใบแจ้งหนี้</label>
+          <input type="text" id="cfg-doc_invoice_prefix" placeholder="INV" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>Prefix ใบกำกับภาษี</label>
+          <input type="text" id="cfg-doc_taxinvoice_prefix" placeholder="TAX" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>Prefix ใบวางบิล</label>
+          <input type="text" id="cfg-doc_billing_prefix" placeholder="BILL" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>Prefix ใบเสร็จรับเงิน</label>
+          <input type="text" id="cfg-doc_receipt_prefix" placeholder="REC" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
       <div style="margin-top:14px;padding:12px 16px;background:var(--amber-lt);border:1px solid #F9A825;border-radius:var(--radius);font-size:13px">
         📌 <strong>รูปแบบ:</strong> <code style="font-family:'IBM Plex Mono',monospace">[PREFIX]-[YYYYMM]-[NNNNN]</code>
-        &nbsp;→&nbsp; เลขที่จะ <strong>รีเซ็ตเป็น 00001 อัตโนมัติเมื่อขึ้นเดือนใหม่</strong>
+        &nbsp;→&nbsp; เลขที่จะ <strong>รีเซ็ตเป็น 00001 อัตโนมัติเมื่อขึ้นเดือนใหม่</strong> (ทุกชนิดเอกสารแยกเลขรันกัน)
       </div>
     </div>
 
@@ -1428,6 +1509,25 @@ tr:hover td { background: #FFF8F0; }
   </div>
 </div>
 
+<!-- ══ PAGE: BILLING DOCUMENTS (generic: invoice / tax / billing / receipt) ══ -->
+<div id="page-doc" class="page">
+  <div id="doc-root"></div>
+</div>
+
+<!-- ══ PAGE: CUSTOMERS ═════════════════════════════════════ -->
+<div id="page-customers" class="page">
+  <div class="dashboard">
+    <div class="page-title">ลูกค้า</div>
+    <div class="page-subtitle">Customers — รายชื่อลูกค้าทั้งหมด</div>
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="cust-search" placeholder="ค้นหาชื่อลูกค้า, เลขผู้เสียภาษี..." oninput="renderCustomers()">
+      </div>
+    </div>
+    <div class="card card-scroll"><div id="cust-list"></div></div>
+  </div>
+</div>
+
 </div><!-- /app-content -->
 <!-- ══ SCRIPTS ══════════════════════════════════════════════ -->
 <script>
@@ -1465,23 +1565,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Verify existing session
+  // Use the cached session immediately (no blocking round-trip). bootApp()
+  // refreshes the token in parallel with the data loads, and every protected
+  // call is auth-checked server-side — so an expired token still redirects to
+  // login, just without paying an extra sequential request up front.
   if (SESSION?.token) {
-    try {
-      loading(true);
-      const user = await api('verifyToken', {}, { token: SESSION.token });
-      loading(false);
-      if (user) {
-        SESSION = { ...SESSION, ...user };
-        applySession();
-        await bootApp();
-        return;
-      }
-    } catch(e) {
-      loading(false);
-    }
+    applySession();
+    await bootApp();
+    return;
   }
-  // No valid session → show login
+  // No session → show login
   showLoginPage();
 });
 
@@ -1499,6 +1592,10 @@ function showLoginPage() {
   document.querySelector('.app-header').style.display = 'none';
   // Hide app content area — use a wrapper div approach
   document.getElementById('app-content').style.display = 'none';
+  // Hide sidebar / drawer while logged out
+  closeSidebar();
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('sidebar-foot').style.display = 'none';
 
   // Pre-fill API URL field
   const stored = localStorage.getItem('api_url') || '';
@@ -1519,6 +1616,7 @@ function hidLoginPage() {
   document.getElementById('page-login').style.display = 'none';
   document.querySelector('.app-header').style.display = 'flex';
   document.getElementById('app-content').style.display = 'block';
+  document.getElementById('sidebar').style.display = 'flex';
 }
 
 function applySession() {
@@ -1530,6 +1628,7 @@ function applySession() {
   document.getElementById('user-role-tag').textContent = SESSION.role === 'admin' ? 'Admin' : 'Sales';
   document.getElementById('user-badge').style.display = 'flex';
   document.getElementById('logout-btn').style.display  = 'block';
+  document.getElementById('sidebar-foot').style.display = 'flex';
   // Hide settings nav for sales role
   const navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.style.display = SESSION.role === 'admin' ? '' : 'none';
@@ -1542,12 +1641,23 @@ async function bootApp() {
   hidLoginPage();
   showPage('dashboard', document.querySelector('#main-nav a'));
   initForm();
-  await loadConfig();
-  await loadCustomers();
-  await loadQuotations();
-  if (SESSION?.role === 'admin') await loadUsers();
   loadSigs();
-  // initForm จะถูกเรียกเมื่อกด 'สร้างใหม่' เท่านั้น
+  // Fire all independent reads in parallel — each Apps Script call is a slow
+  // round-trip, so running them concurrently cuts load time from the SUM of
+  // all calls down to roughly the slowest single call.
+  loading(true);
+  const tasks = [refreshSession(), loadConfig(), loadCustomers(), loadQuotations()];
+  if (SESSION?.role === 'admin') tasks.push(loadUsers());
+  await Promise.all(tasks);
+  loading(false);
+}
+
+// Re-validate the token + refresh role/display name (runs in parallel with the
+// data loads). On an expired token, api() already redirects to the login page.
+async function refreshSession() {
+  if (!SESSION?.token) return;
+  const user = await api('verifyToken', {}, { token: SESSION.token });
+  if (user) { SESSION = { ...SESSION, ...user }; applySession(); }
 }
 
 // ── API ───────────────────────────────────────────────────
@@ -2747,6 +2857,7 @@ async function saveSettings() {
       'company_email','company_website','payment_terms',
       'bank_name','bank_account','bank_account_name','bank_account_type','bank_branch',
       'qt_prefix','qt_running',
+      'doc_invoice_prefix','doc_taxinvoice_prefix','doc_billing_prefix','doc_receipt_prefix',
     ];
     const updates = { logo_height: logoH };
     keys.forEach(k => {
@@ -2911,6 +3022,478 @@ async function confirmDeleteUser(id, username) {
   await loadUsers();
   loading(false);
   toast('🗑 ลบผู้ใช้เรียบร้อย');
+}
+
+// ════════════════════════════════════════════════════════
+//  SIDEBAR / DRAWER
+// ════════════════════════════════════════════════════════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  const open = sb.classList.toggle('open');
+  bd.classList.toggle('show', open);
+}
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (sb) sb.classList.remove('open');
+  const bd = document.getElementById('sidebar-backdrop');
+  if (bd) bd.classList.remove('show');
+}
+function go(name, el) {
+  showPage(name, el);
+  if (name === 'customers') renderCustomers();
+  closeSidebar();
+}
+function goDoc(type, el) {
+  showDoc(type, el);
+  closeSidebar();
+}
+
+// ════════════════════════════════════════════════════════
+//  CUSTOMERS PAGE
+// ════════════════════════════════════════════════════════
+function renderCustomers() {
+  const q = (document.getElementById('cust-search')?.value || '').toLowerCase();
+  const list = CUSTOMERS.filter(c =>
+    !q || ((c.name_th||'') + (c.name_en||'') + (c.tax_id||'')).toLowerCase().includes(q));
+  const box = document.getElementById('cust-list');
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">ยังไม่มีลูกค้า</div>';
+    return;
+  }
+  box.innerHTML = list.map(c => {
+    const meta = [c.tax_id, c.phone, c.email].filter(Boolean).map(escapeHtml).join(' · ');
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)">'
+      + '<div><div style="font-weight:600">' + escapeHtml(c.name_th || c.name_en) + '</div>'
+      + '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + meta + '</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+//  GENERIC BILLING DOCUMENTS MODULE
+//  (invoice / taxinvoice / billing / receipt) — backed by Apps Script
+// ════════════════════════════════════════════════════════
+const DOC_TYPES = {
+  invoice:    { th:'ใบแจ้งหนี้',      en:'Invoice',      icon:'🧾' },
+  taxinvoice: { th:'ใบกำกับภาษี',     en:'Tax Invoice',  icon:'🧾' },
+  billing:    { th:'ใบวางบิล',        en:'Billing Note', icon:'📑' },
+  receipt:    { th:'ใบเสร็จรับเงิน',  en:'Receipt',      icon:'💵' },
+};
+const docState = { type: null, list: [], editingId: null };
+
+function gvv(id) { const e = document.getElementById(id); return e ? e.value : ''; }
+function setV(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
+function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return isoToDisplay(d); }
+
+async function showDoc(type, el) {
+  docState.type = type;
+  docState.editingId = null;
+  showPage('doc', el);
+  await loadDocList(type);
+  renderDocList();
+}
+
+async function loadDocList(type) {
+  loading(true);
+  docState.list = await api('getDocuments', { type }) || [];
+  loading(false);
+}
+
+function renderDocList() {
+  const cfg = DOC_TYPES[docState.type];
+  document.getElementById('doc-root').innerHTML =
+    '<div class="dashboard">'
+    + '<div class="page-title">' + cfg.icon + ' ' + cfg.th + '</div>'
+    + '<div class="page-subtitle">' + cfg.en + ' — จัดการ' + cfg.th + 'ทั้งหมด</div>'
+    + '<div class="toolbar">'
+    + '<div class="search-box"><input type="text" id="doc-search" placeholder="ค้นหาเลขที่, ลูกค้า..." oninput="renderDocRows()"></div>'
+    + '<button class="btn btn-primary" onclick="newDoc()">➕ สร้าง' + cfg.th + '</button>'
+    + '</div>'
+    + '<div class="card card-scroll"><table><thead><tr>'
+    + '<th>เลขที่</th><th>วันที่</th><th>ลูกค้า</th><th style="text-align:right">มูลค่า</th><th>สถานะ</th><th>จัดการ</th>'
+    + '</tr></thead><tbody id="doc-tbody"></tbody></table></div>'
+    + '</div>';
+  renderDocRows();
+}
+
+function renderDocRows() {
+  const q = (document.getElementById('doc-search')?.value || '').toLowerCase();
+  const rows = docState.list.filter(d =>
+    !q || ((d.doc_number||'') + (d.customer_name_th||'')).toLowerCase().includes(q));
+  const tb = document.getElementById('doc-tbody');
+  if (!tb) return;
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">ยังไม่มีเอกสาร</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(d =>
+    '<tr>'
+    + '<td><span class="mono">' + escapeHtml(d.doc_number) + '</span></td>'
+    + '<td>' + formatDate(d.doc_date) + '</td>'
+    + '<td>' + escapeHtml(d.customer_name_th) + '</td>'
+    + '<td class="mono" style="text-align:right">' + fmtNum(d.total) + '</td>'
+    + '<td><span class="badge badge-' + (d.status||'draft') + '">' + statusLabel(d.status) + '</span></td>'
+    + '<td><div style="display:flex;gap:4px">'
+      + '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
+      + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
+      + '<button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
+    + '</div></td>'
+    + '</tr>').join('');
+}
+
+async function newDoc() {
+  docState.editingId = null;
+  loading(true);
+  const num = await api('nextDocNumber', { type: docState.type });
+  loading(false);
+  buildDocForm({ doc_number: num || '', doc_date: isoToDisplay(new Date()), due_date: addDays(30) });
+}
+
+async function editDoc(id) {
+  loading(true);
+  const d = await api('getDocument', { id });
+  loading(false);
+  if (!d) return;
+  docState.editingId = d.id;
+  buildDocForm({
+    doc_number: d.doc_number, doc_date: formatDate(d.doc_date), due_date: formatDate(d.due_date),
+    ref_no: d.ref_no, customer_name_th: d.customer_name_th, customer_tax_id: d.customer_tax_id,
+    customer_address_th: d.customer_address_th, customer_phone: d.customer_phone, customer_email: d.customer_email,
+    subject: d.subject, payment_terms: d.payment_terms, note: d.note,
+    discount: d.discount, vat_type: d.vat_type, status: d.status, items: d.items || []
+  });
+}
+
+async function deleteDoc(id, num) {
+  if (!confirm('ลบเอกสาร "' + num + '" ?\nการลบไม่สามารถยกเลิกได้')) return;
+  loading(true);
+  await api('deleteDocument', { id });
+  await loadDocList(docState.type);
+  loading(false);
+  renderDocList();
+  toast('🗑 ลบเอกสารเรียบร้อย');
+}
+
+function backToDocList() { renderDocList(); window.scrollTo({ top:0, behavior:'smooth' }); }
+
+function buildDocForm(doc) {
+  doc = doc || {};
+  const cfg = DOC_TYPES[docState.type];
+  const showDue = (docState.type !== 'receipt');
+  let custOpts = '<option value="">— เลือกลูกค้า หรือกรอกใหม่ —</option>';
+  for (let i = 0; i < CUSTOMERS.length; i++)
+    custOpts += '<option value="' + i + '">' + escapeHtml(CUSTOMERS[i].name_th || CUSTOMERS[i].name_en) + '</option>';
+
+  document.getElementById('doc-root').innerHTML =
+    '<div class="form-page">'
+    + '<div class="form-header"><h1>' + cfg.icon + ' ' + (docState.editingId ? 'แก้ไข' : 'สร้าง') + cfg.th + '</h1>'
+    + '<div class="qt-number">' + escapeHtml(doc.doc_number || '') + '</div>'
+    + '<div class="actions">'
+    + '<button class="btn btn-secondary" onclick="backToDocList()">← กลับ</button>'
+    + '<button class="btn btn-secondary" onclick="saveDocAndPreview()">👁 บันทึก & ดูตัวอย่าง</button>'
+    + '<button class="btn btn-primary" onclick="saveDocAndList()">💾 บันทึก</button>'
+    + '</div></div>'
+    // doc info
+    + '<div class="section"><div class="grid-2">'
+    + '<div class="field"><label>เลขที่</label><input id="doc-number" value="' + escapeHtml(doc.doc_number || '') + '"></div>'
+    + '<div class="field"><label>วันที่ (วว/ดด/ปปปป)</label><input id="doc-date" value="' + escapeHtml(doc.doc_date || '') + '"></div>'
+    + (showDue
+        ? '<div class="field"><label>ครบกำหนด / Due Date</label><input id="doc-due" value="' + escapeHtml(doc.due_date || '') + '"></div>'
+        : '<input type="hidden" id="doc-due" value="">')
+    + '<div class="field"><label>อ้างอิง</label><input id="doc-ref" value="' + escapeHtml(doc.ref_no || '') + '" placeholder="เช่น เลขที่ใบเสนอราคา"></div>'
+    + '</div></div>'
+    // customer
+    + '<div class="section">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">'
+    + '<strong>ข้อมูลลูกค้า</strong>'
+    + '<select id="doc-cust-select" onchange="docPickCustomer()" style="max-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius)">' + custOpts + '</select>'
+    + '</div>'
+    + '<div class="grid-2">'
+    + '<div class="field"><label>ชื่อ / บริษัท</label><input id="doc-cn" value="' + escapeHtml(doc.customer_name_th || '') + '"></div>'
+    + '<div class="field"><label>เลขผู้เสียภาษี</label><input id="doc-ct" value="' + escapeHtml(doc.customer_tax_id || '') + '"></div>'
+    + '</div>'
+    + '<div class="field" style="margin-top:8px"><label>ที่อยู่</label><textarea id="doc-ca">' + escapeHtml(doc.customer_address_th || '') + '</textarea></div>'
+    + '<div class="grid-2" style="margin-top:8px">'
+    + '<div class="field"><label>โทรศัพท์</label><input id="doc-cph" value="' + escapeHtml(doc.customer_phone || '') + '"></div>'
+    + '<div class="field"><label>อีเมล</label><input id="doc-cem" value="' + escapeHtml(doc.customer_email || '') + '"></div>'
+    + '</div>'
+    + '<div style="margin-top:8px;text-align:right"><button class="btn btn-secondary btn-sm" onclick="docSaveCustomer()">+ บันทึกลูกค้า</button></div>'
+    + '</div>'
+    // subject / payment
+    + '<div class="section"><div class="grid-2">'
+    + '<div class="field"><label>เรื่อง / รายละเอียด</label><input id="doc-subject" value="' + escapeHtml(doc.subject || '') + '"></div>'
+    + '<div class="field"><label>เงื่อนไขการชำระเงิน</label><input id="doc-pay" value="' + escapeHtml(doc.payment_terms || '') + '"></div>'
+    + '</div></div>'
+    // items
+    + '<div class="section"><strong>รายการสินค้า / บริการ</strong>'
+    + '<div style="overflow-x:auto;margin-top:10px"><table class="items-table"><thead><tr>'
+    + '<th style="min-width:200px">รายการ</th><th style="width:80px;text-align:center">จำนวน</th>'
+    + '<th style="width:80px;text-align:center">หน่วย</th><th style="width:120px;text-align:right">ราคา/หน่วย</th>'
+    + '<th style="width:120px;text-align:right">รวม</th><th style="width:36px"></th>'
+    + '</tr></thead><tbody id="doc-items-body"></tbody></table></div>'
+    + '<div style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="addDocItem()">+ เพิ่มรายการ</button></div>'
+    // totals
+    + '<div style="max-width:320px;margin-left:auto;margin-top:16px">'
+    + '<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--text3)">ยอดรวมก่อนภาษี</span><span id="doc-sub" class="mono">0.00</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="color:var(--text3)">ส่วนลด</span><input id="doc-discount" type="number" min="0" step="0.01" value="' + (doc.discount != null ? escapeHtml(doc.discount) : 0) + '" oninput="docCalc()" style="width:120px;text-align:right;padding:4px 8px"></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--text3)">ยอดหลังหักส่วนลด</span><span id="doc-after" class="mono">0.00</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text3)"><input type="checkbox" id="doc-vat" ' + (doc.vat_type === 'none' ? '' : 'checked') + ' onchange="docCalc()"> ภาษีมูลค่าเพิ่ม 7%</label><span id="doc-vat-amt" class="mono">0.00</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px;font-weight:700;font-size:17px;color:var(--accent)"><span>ยอดรวมทั้งสิ้น</span><span id="doc-total" class="mono">0.00</span></div>'
+    + '</div></div>'
+    // note + status
+    + '<div class="section"><div class="grid-2">'
+    + '<div class="field"><label>หมายเหตุ</label><textarea id="doc-note">' + escapeHtml(doc.note || '') + '</textarea></div>'
+    + '<div class="field"><label>สถานะ</label><select id="doc-status" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">'
+      + '<option value="draft">Draft</option><option value="sent">ส่งแล้ว</option>'
+      + '<option value="approved">อนุมัติ / ชำระแล้ว</option><option value="rejected">ยกเลิก</option>'
+    + '</select></div>'
+    + '</div></div>'
+    + '</div>';
+
+  setV('doc-status', doc.status || 'draft');
+  const items = doc.items || [];
+  if (items.length) items.forEach(it => addDocItem(it));
+  else addDocItem();
+  docCalc();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function docPickCustomer() {
+  const sel = document.getElementById('doc-cust-select');
+  if (!sel || sel.value === '') return;
+  const c = CUSTOMERS[parseInt(sel.value)];
+  if (!c) return;
+  setV('doc-cn', c.name_th || c.name_en || '');
+  setV('doc-ct', c.tax_id || '');
+  setV('doc-ca', c.address_th || '');
+  setV('doc-cph', c.phone || '');
+  setV('doc-cem', c.email || '');
+}
+
+async function docSaveCustomer() {
+  const name = (gvv('doc-cn') || '').trim();
+  if (!name) { toast('กรอกชื่อลูกค้าก่อน', 'error'); return; }
+  loading(true);
+  await api('saveCustomer', {}, {
+    name_th: name, tax_id: gvv('doc-ct'), address_th: gvv('doc-ca'),
+    phone: gvv('doc-cph'), email: gvv('doc-cem')
+  });
+  CUSTOMERS = await api('getCustomers') || CUSTOMERS;
+  loading(false);
+  // refresh select, keep current typed values
+  let opts = '<option value="">— เลือกลูกค้า หรือกรอกใหม่ —</option>';
+  for (let i = 0; i < CUSTOMERS.length; i++)
+    opts += '<option value="' + i + '">' + escapeHtml(CUSTOMERS[i].name_th || CUSTOMERS[i].name_en) + '</option>';
+  const sel = document.getElementById('doc-cust-select');
+  if (sel) sel.innerHTML = opts;
+  toast('✅ บันทึกลูกค้าแล้ว');
+}
+
+function addDocItem(item) {
+  item = item || {};
+  const tb = document.getElementById('doc-items-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><input class="di-desc" placeholder="รายการสินค้า/บริการ" value="' + escapeHtml(item.description || '') + '"></td>'
+    + '<td><input class="di-qty" type="number" min="0" step="1" style="text-align:center" value="' + (item.qty != null ? escapeHtml(item.qty) : 1) + '"></td>'
+    + '<td><input class="di-unit" placeholder="หน่วย" style="text-align:center" value="' + escapeHtml(item.unit || '') + '"></td>'
+    + '<td><input class="di-price" type="number" min="0" step="0.01" style="text-align:right" value="' + (item.unit_price != null ? escapeHtml(item.unit_price) : 0) + '"></td>'
+    + '<td><input class="di-amt" readonly style="text-align:right;background:var(--bg)"></td>'
+    + '<td style="text-align:center"><button class="btn-icon" title="ลบ" style="border:none;background:none;color:var(--text3);cursor:pointer">✕</button></td>';
+  tb.appendChild(tr);
+  tr.querySelectorAll('input').forEach(i => i.addEventListener('input', docCalc));
+  tr.querySelector('button').onclick = () => { tr.remove(); docCalc(); };
+  docCalc();
+}
+
+function docCalc() {
+  let sub = 0;
+  document.querySelectorAll('#doc-items-body tr').forEach(tr => {
+    const q = parseFloat(tr.querySelector('.di-qty').value) || 0;
+    const p = parseFloat(tr.querySelector('.di-price').value) || 0;
+    const amt = q * p;
+    tr.querySelector('.di-amt').value = fmtNum(amt);
+    sub += amt;
+  });
+  let disc = parseFloat(gvv('doc-discount')) || 0;
+  if (disc > sub) disc = sub;
+  const after = sub - disc;
+  const hasVat = document.getElementById('doc-vat').checked;
+  const vat = hasVat ? after * 0.07 : 0;
+  document.getElementById('doc-sub').textContent = fmtNum(sub);
+  document.getElementById('doc-after').textContent = fmtNum(after);
+  document.getElementById('doc-vat-amt').textContent = fmtNum(vat);
+  document.getElementById('doc-total').textContent = fmtNum(after + vat);
+}
+
+function getDocItems() {
+  const items = [];
+  document.querySelectorAll('#doc-items-body tr').forEach(tr => {
+    const d = (tr.querySelector('.di-desc').value || '').trim();
+    if (!d) return;
+    const q = parseFloat(tr.querySelector('.di-qty').value) || 0;
+    const p = parseFloat(tr.querySelector('.di-price').value) || 0;
+    items.push({ description: d, qty: q, unit: tr.querySelector('.di-unit').value || '', unit_price: p, discount_pct: 0, amount: q * p });
+  });
+  return items;
+}
+
+function buildDocBody() {
+  const items = getDocItems();
+  const sub = items.reduce((s, i) => s + i.amount, 0);
+  let disc = parseFloat(gvv('doc-discount')) || 0;
+  if (disc > sub) disc = sub;
+  const after = sub - disc;
+  const hasVat = document.getElementById('doc-vat').checked;
+  const vat = hasVat ? after * 0.07 : 0;
+  return {
+    id: docState.editingId || undefined,
+    doc_type: docState.type,
+    doc_number: gvv('doc-number'),
+    doc_date: displayToIso(gvv('doc-date')),
+    due_date: displayToIso(gvv('doc-due')),
+    ref_no: gvv('doc-ref'),
+    customer_name_th: gvv('doc-cn'),
+    customer_tax_id: gvv('doc-ct'),
+    customer_address_th: gvv('doc-ca'),
+    customer_phone: gvv('doc-cph'),
+    customer_email: gvv('doc-cem'),
+    subject: gvv('doc-subject'),
+    payment_terms: gvv('doc-pay'),
+    note: gvv('doc-note'),
+    subtotal: sub.toFixed(2),
+    discount: disc.toFixed(2),
+    after_discount: after.toFixed(2),
+    vat_type: hasVat ? 'exclusive' : 'none',
+    vat_amount: vat.toFixed(2),
+    total: (after + vat).toFixed(2),
+    status: gvv('doc-status') || 'draft',
+    items: items,
+  };
+}
+
+async function saveDoc() {
+  const body = buildDocBody();
+  if (!body.doc_number || !body.customer_name_th) {
+    toast('❌ กรุณากรอกเลขที่และชื่อลูกค้า', 'error');
+    return false;
+  }
+  loading(true);
+  let res;
+  if (docState.editingId) {
+    res = await api('updateDocument', {}, body);
+  } else {
+    res = await api('saveDocument', {}, body);
+    if (res && res.id) docState.editingId = res.id;
+  }
+  if (res) await loadDocList(docState.type);
+  loading(false);
+  if (res) toast('✅ บันทึกเรียบร้อย');
+  return !!res;
+}
+
+async function saveDocAndList() { if (await saveDoc()) renderDocList(); }
+async function saveDocAndPreview() { if (await saveDoc()) previewDocData(buildDocBody()); }
+
+async function previewDoc(id) {
+  loading(true);
+  const d = await api('getDocument', { id });
+  loading(false);
+  if (!d) return;
+  docState.editingId = d.id;
+  previewDocData(d);
+}
+
+function previewDocData(d) {
+  document.getElementById('doc-root').innerHTML =
+    '<div class="form-header" style="border:none;margin-bottom:14px"><div class="actions" style="margin-left:auto">'
+    + '<button class="btn btn-secondary" onclick="' + (docState.editingId ? "editDoc('" + docState.editingId + "')" : 'backToDocList()') + '">← แก้ไข</button>'
+    + '<button class="btn btn-primary" onclick="docPrint()">🖨 พิมพ์ / PDF</button>'
+    + '</div></div>'
+    + '<div class="preview-frame"><div class="print-page" id="doc-print-page">' + docInnerHTML(d) + '</div></div>';
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function docInnerHTML(d) {
+  const cfg = DOC_TYPES[d.doc_type] || DOC_TYPES[docState.type] || {};
+  const co = CONFIG || {};
+  let rows = '';
+  (d.items || []).forEach(it => {
+    rows += '<tr>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee">' + escapeHtml(it.description) + '</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:center">' + escapeHtml(it.qty) + '</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:center">' + escapeHtml(it.unit || '-') + '</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">' + fmtNum(it.unit_price) + '</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">' + fmtNum(it.amount) + '</td>'
+      + '</tr>';
+  });
+  if (!rows) rows = '<tr><td colspan="5" style="padding:14px;text-align:center;color:#bbb">ไม่มีรายการ</td></tr>';
+  const hasVat = (d.vat_type && d.vat_type !== 'none');
+  const disc = parseFloat(d.discount) || 0;
+  return ''
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B71C1C;padding-bottom:12px;margin-bottom:16px">'
+    + '<div style="max-width:62%">'
+    + '<div style="font-size:16px;font-weight:700;color:#1a1a1a">' + escapeHtml(co.company_name_th || '') + '</div>'
+    + '<div style="font-size:11px;color:#777;line-height:1.7;margin-top:3px">' + escapeHtml(co.company_address_th || '')
+    + '<br>โทร ' + escapeHtml(co.company_phone || '') + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '') + '</div>'
+    + '</div>'
+    + '<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#B71C1C">' + escapeHtml(cfg.th || '') + '</div>'
+    + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(cfg.en || '') + '</div></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">'
+    + '<div style="background:#f9f8f5;border-radius:7px;padding:10px 12px">'
+    + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">ลูกค้า / Customer</div>'
+    + '<div style="font-size:13px;font-weight:600">' + escapeHtml(d.customer_name_th || '-') + '</div>'
+    + (d.customer_tax_id ? '<div style="font-size:11px;color:#555;margin-top:2px">เลขผู้เสียภาษี: ' + escapeHtml(d.customer_tax_id) + '</div>' : '')
+    + (d.customer_address_th ? '<div style="font-size:11px;color:#555;margin-top:2px">' + escapeHtml(d.customer_address_th).replace(/\n/g, '<br>') + '</div>' : '')
+    + (d.customer_phone ? '<div style="font-size:11px;color:#555;margin-top:2px">โทร ' + escapeHtml(d.customer_phone) + '</div>' : '')
+    + '</div>'
+    + '<div style="background:#f9f8f5;border-radius:7px;padding:10px 12px">'
+    + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">รายละเอียดเอกสาร</div>'
+    + '<div style="font-size:12px;line-height:1.9">เลขที่: <strong>' + escapeHtml(d.doc_number || '') + '</strong><br>'
+    + 'วันที่: ' + formatDate(d.doc_date)
+    + (d.due_date ? '<br><span style="color:#B71C1C">ครบกำหนด: ' + formatDate(d.due_date) + '</span>' : '')
+    + (d.ref_no ? '<br>อ้างอิง: ' + escapeHtml(d.ref_no) : '')
+    + (d.subject ? '<br>เรื่อง: ' + escapeHtml(d.subject) : '')
+    + '</div></div></div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">'
+    + '<thead><tr style="background:#f9f8f5">'
+    + '<th style="padding:7px 8px;text-align:left;font-size:10px;color:#999;text-transform:uppercase;border-bottom:1px solid #ddd">รายการ</th>'
+    + '<th style="padding:7px 8px;text-align:center;font-size:10px;color:#999;text-transform:uppercase;border-bottom:1px solid #ddd;width:60px">จำนวน</th>'
+    + '<th style="padding:7px 8px;text-align:center;font-size:10px;color:#999;text-transform:uppercase;border-bottom:1px solid #ddd;width:60px">หน่วย</th>'
+    + '<th style="padding:7px 8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase;border-bottom:1px solid #ddd;width:100px">ราคา/หน่วย</th>'
+    + '<th style="padding:7px 8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase;border-bottom:1px solid #ddd;width:100px">รวม</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div style="width:260px;margin-left:auto;font-size:12px">'
+    + '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ยอดรวมก่อนภาษี</span><span>' + fmtNum(d.subtotal) + '</span></div>'
+    + (disc > 0 ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ส่วนลด</span><span>-' + fmtNum(disc) + '</span></div>' : '')
+    + (disc > 0 ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ยอดหลังหักส่วนลด</span><span>' + fmtNum(d.after_discount) + '</span></div>' : '')
+    + (hasVat ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ภาษีมูลค่าเพิ่ม 7%</span><span>' + fmtNum(d.vat_amount) + '</span></div>' : '')
+    + '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #ddd;margin-top:4px;font-weight:700;font-size:14px;color:#B71C1C"><span>ยอดรวมทั้งสิ้น</span><span>' + fmtNum(d.total) + '</span></div>'
+    + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(parseFloat(d.total) || 0)) + ')</div>'
+    + '</div>'
+    + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px">'
+    + '<div style="text-align:center;font-size:11px;color:#888"><div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้รับเอกสาร / Received by</div>'
+    + '<div style="text-align:center;font-size:11px;color:#888"><div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้มีอำนาจลงนาม / Authorized</div>'
+    + '</div>';
+}
+
+function docPrint() {
+  const el = document.getElementById('doc-print-page');
+  if (!el) { toast('ไม่พบเอกสาร', 'error'); return; }
+  const css = '@page{size:A4 portrait;margin:1.4cm 1.6cm}'
+    + '*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
+    + 'body{font-family:Sarabun,Arial,sans-serif;color:#1a1a1a;margin:0;padding:0;font-size:11pt}';
+  const w = window.open('', '_blank');
+  if (!w) { toast('กรุณาอนุญาต popup แล้วลองใหม่', 'error'); return; }
+  w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
+    + '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
+    + '<style>' + css + '</style></head><body>' + el.innerHTML + '</body></html>');
+  w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
 }
 
 // ── UTILITIES ─────────────────────────────────────────────
