@@ -1648,7 +1648,7 @@ async function bootApp() {
   loading(true);
   const tasks = [refreshSession(), loadConfig(), loadCustomers(), loadQuotations()];
   if (SESSION?.role === 'admin') tasks.push(loadUsers());
-  await Promise.all(tasks);
+  await Promise.allSettled(tasks);
   loading(false);
 }
 
@@ -2169,6 +2169,9 @@ function buildQTBody() {
     customer_email      : document.getElementById('customer_email').value,
     payment_terms_th    : document.getElementById('payment_terms_th').value,
     payment_terms_en    : document.getElementById('payment_terms_en').value,
+    // Persist into the existing single `payment_terms` column (the only one in
+    // the sheet schema) so the value is actually remembered across save/edit.
+    payment_terms       : document.getElementById('payment_terms_th').value,
     note_th             : document.getElementById('note_th').value,
     note_en             : document.getElementById('note_en').value,
     status              : document.querySelector('[name="status"]:checked')?.value || 'draft',
@@ -2247,6 +2250,9 @@ async function editQuotation(id) {
     const el = document.getElementById(f);
     if (el) el.value = qt[f] !== undefined ? qt[f] : '';
   });
+  // Payment terms is stored in the single `payment_terms` column
+  const ptEl = document.getElementById('payment_terms_th');
+  if (ptEl) ptEl.value = qt.payment_terms || qt.payment_terms_th || '';
 
   const statusEl = document.querySelector(`[name="status"][value="${qt.status}"]`);
   if (statusEl) statusEl.checked = true;
@@ -2449,9 +2455,9 @@ function renderPreview(qt) {
     </table>
 
     <!-- PAYMENT / NOTE -->
-    ${(qt.payment_terms_th||qt.payment_terms_en||qt.note_th) ? `
+    ${((qt.payment_terms_th||qt.payment_terms)||qt.payment_terms_en||qt.note_th) ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;font-size:12px">
-      ${qt.payment_terms_th?`<div><strong>เงื่อนไขการชำระเงิน:</strong><br>${qt.payment_terms_th}</div>`:''}
+      ${(qt.payment_terms_th||qt.payment_terms)?`<div><strong>เงื่อนไขการชำระเงิน:</strong><br>${qt.payment_terms_th||qt.payment_terms}</div>`:''}
       ${qt.note_th?`<div><strong>หมายเหตุ:</strong><br>${qt.note_th}</div>`:''}
     </div>` : ''}
 
@@ -2562,8 +2568,10 @@ function printDoc() {
         tfoot { display:table-footer-group; }
         tr    { page-break-inside:avoid; }
         .sig-block { page-break-inside:avoid; }
-        /* Show mini-header only when thead repeats (page 2+) */
-        .thead-company-row { display:table-row !important; }
+        /* Mini company header inside <thead> repeats on EVERY printed page
+           (including page 1, where it duplicated under the project name).
+           CSS can't limit a repeating thead row to page 2+, so keep it hidden. */
+        .thead-company-row { display:none !important; }
         /* page number bottom-right */
         .footer-pagenum {
           position: fixed;
@@ -2657,6 +2665,9 @@ async function copyQuotation(id) {
     const el = document.getElementById(f);
     if (el && qt[f] !== undefined) el.value = qt[f];
   });
+  const ptElCopy = document.getElementById('payment_terms_th');
+  if (ptElCopy && (qt.payment_terms || qt.payment_terms_th))
+    ptElCopy.value = qt.payment_terms || qt.payment_terms_th;
 
   // New doc number + today's date
   document.getElementById('qt_number').value = newNum || '';
@@ -2866,12 +2877,12 @@ async function saveSettings() {
     });
     loading(true);
     await api('saveConfig', {}, updates);
-    await loadConfig();
-    await loadCustomers();
-    await loadQuotations();
+    // Reload everything in parallel after the write completes
+    const reloads = [loadConfig(), loadCustomers(), loadQuotations()];
+    if (SESSION?.role === 'admin') reloads.push(loadUsers());
+    await Promise.allSettled(reloads);
     loading(false);
     showPage('dashboard', null);
-    if (SESSION?.role === 'admin') await loadUsers();
   }
   toast('✅ บันทึกการตั้งค่าเรียบร้อย');
 }
