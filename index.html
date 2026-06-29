@@ -1535,6 +1535,7 @@ tr:hover td { background: #FFF8F0; }
 // ── SIGNATURES (load immediately) ─────────────────────────
 let SIG1 = localStorage.getItem('sig1') || '';
 let SIG2 = localStorage.getItem('sig2') || '';
+let ASSET_CACHE = null; // logo + signatures fetched from backend (shared across devices)
 
 // ═══════════════════════════════════════════════════
 //  ตั้งค่า Apps Script URL ที่นี่ (ครั้งเดียว)
@@ -1646,10 +1647,37 @@ async function bootApp() {
   // round-trip, so running them concurrently cuts load time from the SUM of
   // all calls down to roughly the slowest single call.
   loading(true);
-  const tasks = [refreshSession(), loadConfig(), loadCustomers(), loadQuotations()];
+  const tasks = [refreshSession(), loadConfig(), loadCustomers(), loadQuotations(), loadAssets()];
   if (SESSION?.role === 'admin') tasks.push(loadUsers());
   await Promise.allSettled(tasks);
+  applyAssets(); // after loadConfig() has replaced CONFIG, so logo isn't clobbered
   loading(false);
+}
+
+// Logo + signatures live in the backend (sheet "Assets") so they appear on any
+// device / account — not just the browser that uploaded them. loadAssets just
+// fetches (in parallel); applyAssets wires them into CONFIG + previews.
+async function loadAssets() {
+  ASSET_CACHE = await api('getAssets') || {};
+}
+
+function applyAssets() {
+  const a = ASSET_CACHE || {};
+  const logo = a.company_logo || localStorage.getItem('company_logo') || '';
+  if (logo) {
+    CONFIG.company_logo = logo;
+    logoBase64 = logo;
+    localStorage.setItem('company_logo', logo); // cache for instant next load
+  }
+  SIG1 = a.sig1 || localStorage.getItem('sig1') || '';
+  SIG2 = a.sig2 || localStorage.getItem('sig2') || '';
+  if (SIG1) localStorage.setItem('sig1', SIG1);
+  if (SIG2) localStorage.setItem('sig2', SIG2);
+  showSigPreview('sig1', SIG1);
+  showSigPreview('sig2', SIG2);
+  const zone = document.getElementById('logo-preview-zone');
+  if (zone && CONFIG.company_logo) showLogoThumb(CONFIG.company_logo);
+  updateHeaderPreview();
 }
 
 // Re-validate the token + refresh role/display name (runs in parallel with the
@@ -2803,10 +2831,15 @@ function handleSigFile(file, key) {
   if (!file) return;
   if (file.size > 500000) { toast('ไฟล์ใหญ่เกินไป (สูงสุด 500KB)', 'error'); return; }
   const reader = new FileReader();
-  reader.onload = e => {
-    if (key === 'sig1') { SIG1 = e.target.result; localStorage.setItem('sig1', SIG1); showSigPreview('sig1', SIG1); }
-    else                { SIG2 = e.target.result; localStorage.setItem('sig2', SIG2); showSigPreview('sig2', SIG2); }
-    toast('✅ บันทึกลายเซ็นเรียบร้อย');
+  reader.onload = async e => {
+    const data = e.target.result;
+    if (key === 'sig1') { SIG1 = data; localStorage.setItem('sig1', SIG1); showSigPreview('sig1', SIG1); }
+    else                { SIG2 = data; localStorage.setItem('sig2', SIG2); showSigPreview('sig2', SIG2); }
+    // Persist to backend so the signature shows on every device
+    loading(true);
+    await api('saveAsset', {}, { key, data });
+    loading(false);
+    toast('✅ บันทึกลายเซ็นเรียบร้อย (แชร์ทุกเครื่อง)');
   };
   reader.readAsDataURL(file);
 }
@@ -2824,10 +2857,11 @@ function showSigPreview(key, src) {
     : '<span style="font-size:13px;color:var(--text3)">คลิกหรือลากไฟล์ลายเซ็น</span>';
 }
 
-function clearSig(key) {
+async function clearSig(key) {
   if (key === 'sig1') { SIG1 = ''; localStorage.removeItem('sig1'); }
   else               { SIG2 = ''; localStorage.removeItem('sig2'); }
   showSigPreview(key, '');
+  await api('saveAsset', {}, { key, data: '' }); // clear on backend too
 }
 
 function loadSigs() {
@@ -2853,10 +2887,12 @@ async function saveSettings() {
   const url = document.getElementById('cfg-api-url').value.trim();
   if (url) { API_URL = url; localStorage.setItem('api_url', url); }
 
-  // Logo → localStorage (base64 too large for Sheets)
+  // Logo → cache locally + upload to backend (shared across devices)
   if (logoBase64) {
     localStorage.setItem('company_logo', logoBase64);
     CONFIG.company_logo = logoBase64;
+  } else {
+    localStorage.removeItem('company_logo');
   }
   const logoH = document.getElementById('cfg-logo_height')?.value || '60';
   localStorage.setItem('logo_height', logoH);
@@ -2877,6 +2913,8 @@ async function saveSettings() {
     });
     loading(true);
     await api('saveConfig', {}, updates);
+    // Upload logo to backend so it shows on every device (empty = clear)
+    await api('saveAsset', {}, { key: 'company_logo', data: logoBase64 || '' });
     // Reload everything in parallel after the write completes
     const reloads = [loadConfig(), loadCustomers(), loadQuotations()];
     if (SESSION?.role === 'admin') reloads.push(loadUsers());
@@ -3445,10 +3483,14 @@ function docInnerHTML(d) {
   const disc = parseFloat(d.discount) || 0;
   return ''
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B71C1C;padding-bottom:12px;margin-bottom:16px">'
-    + '<div style="max-width:62%">'
+    + '<div style="max-width:64%;display:flex;align-items:flex-start;gap:10px">'
+    + (co.company_logo ? '<img src="' + co.company_logo + '" style="max-height:' + (parseInt(co.logo_height) || 56) + 'px;max-width:90px;object-fit:contain;flex-shrink:0">' : '')
+    + '<div>'
     + '<div style="font-size:16px;font-weight:700;color:#1a1a1a">' + escapeHtml(co.company_name_th || '') + '</div>'
+    + (co.company_name_en ? '<div style="font-size:11px;color:#999">' + escapeHtml(co.company_name_en) + '</div>' : '')
     + '<div style="font-size:11px;color:#777;line-height:1.7;margin-top:3px">' + escapeHtml(co.company_address_th || '')
     + '<br>โทร ' + escapeHtml(co.company_phone || '') + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '') + '</div>'
+    + '</div>'
     + '</div>'
     + '<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#B71C1C">' + escapeHtml(cfg.th || '') + '</div>'
     + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(cfg.en || '') + '</div></div>'
