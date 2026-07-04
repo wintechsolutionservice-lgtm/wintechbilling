@@ -918,6 +918,7 @@ tr:hover td { background: #FFF8F0; }
     <a onclick="goDoc('taxinvoice',this)">🧾 ใบกำกับภาษี</a>
     <a onclick="goDoc('billing',this)">📑 ใบวางบิล</a>
     <a onclick="goDoc('receipt',this)">💵 ใบเสร็จรับเงิน</a>
+    <a onclick="goDoc('purchaseorder',this)">🛒 ใบสั่งซื้อ</a>
     <div class="sidebar-sep">ข้อมูล</div>
     <a onclick="go('customers',this)">👥 ลูกค้า</a>
     <a id="nav-settings" onclick="go('settings',this)">⚙️ ตั้งค่า</a>
@@ -1450,6 +1451,10 @@ tr:hover td { background: #FFF8F0; }
         <div class="field">
           <label>Prefix ใบเสร็จรับเงิน</label>
           <input type="text" id="cfg-doc_receipt_prefix" placeholder="REC" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>Prefix ใบสั่งซื้อ</label>
+          <input type="text" id="cfg-doc_purchaseorder_prefix" placeholder="PO" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
         </div>
       </div>
       <div style="margin-top:14px;padding:12px 16px;background:var(--amber-lt);border:1px solid #F9A825;border-radius:var(--radius);font-size:13px">
@@ -2904,7 +2909,7 @@ async function saveSettings() {
       'company_email','company_website','payment_terms',
       'bank_name','bank_account','bank_account_name','bank_account_type','bank_branch',
       'qt_prefix','qt_running',
-      'doc_invoice_prefix','doc_taxinvoice_prefix','doc_billing_prefix','doc_receipt_prefix',
+      'doc_invoice_prefix','doc_taxinvoice_prefix','doc_billing_prefix','doc_receipt_prefix','doc_purchaseorder_prefix',
     ];
     const updates = { logo_height: logoH };
     keys.forEach(k => {
@@ -3125,10 +3130,11 @@ function renderCustomers() {
 //  (invoice / taxinvoice / billing / receipt) — backed by Apps Script
 // ════════════════════════════════════════════════════════
 const DOC_TYPES = {
-  invoice:    { th:'ใบแจ้งหนี้',      en:'Invoice',      icon:'🧾' },
-  taxinvoice: { th:'ใบกำกับภาษี',     en:'Tax Invoice',  icon:'🧾' },
-  billing:    { th:'ใบวางบิล',        en:'Billing Note', icon:'📑' },
-  receipt:    { th:'ใบเสร็จรับเงิน',  en:'Receipt',      icon:'💵' },
+  invoice:       { th:'ใบแจ้งหนี้',      en:'Invoice',        icon:'🧾', partyTh:'ลูกค้า', partyEn:'Customer' },
+  taxinvoice:    { th:'ใบกำกับภาษี',     en:'Tax Invoice',    icon:'🧾', partyTh:'ลูกค้า', partyEn:'Customer' },
+  billing:       { th:'ใบวางบิล',        en:'Billing Note',   icon:'📑', partyTh:'ลูกค้า', partyEn:'Customer' },
+  receipt:       { th:'ใบเสร็จรับเงิน',  en:'Receipt',        icon:'💵', partyTh:'ลูกค้า', partyEn:'Customer' },
+  purchaseorder: { th:'ใบสั่งซื้อ',      en:'Purchase Order', icon:'🛒', partyTh:'ผู้ขาย', partyEn:'Supplier' },
 };
 const docState = { type: null, list: [], editingId: null };
 
@@ -3256,7 +3262,7 @@ function buildDocForm(doc) {
     // customer
     + '<div class="section">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">'
-    + '<strong>ข้อมูลลูกค้า</strong>'
+    + '<strong>ข้อมูล' + cfg.partyTh + '</strong>'
     + '<select id="doc-cust-select" onchange="docPickCustomer()" style="max-width:240px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius)">' + custOpts + '</select>'
     + '</div>'
     + '<div class="grid-2">'
@@ -3497,7 +3503,7 @@ function docInnerHTML(d) {
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">'
     + '<div style="background:#f9f8f5;border-radius:7px;padding:10px 12px">'
-    + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">ลูกค้า / Customer</div>'
+    + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">' + escapeHtml(cfg.partyTh || 'ลูกค้า') + ' / ' + escapeHtml(cfg.partyEn || 'Customer') + '</div>'
     + '<div style="font-size:13px;font-weight:600">' + escapeHtml(d.customer_name_th || '-') + '</div>'
     + (d.customer_tax_id ? '<div style="font-size:11px;color:#555;margin-top:2px">เลขผู้เสียภาษี: ' + escapeHtml(d.customer_tax_id) + '</div>' : '')
     + (d.customer_address_th ? '<div style="font-size:11px;color:#555;margin-top:2px">' + escapeHtml(d.customer_address_th).replace(/\n/g, '<br>') + '</div>' : '')
@@ -3528,9 +3534,16 @@ function docInnerHTML(d) {
     + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(parseFloat(d.total) || 0)) + ')</div>'
     + '</div>'
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px">'
-    + '<div style="text-align:center;font-size:11px;color:#888"><div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้รับเอกสาร / Received by</div>'
-    + '<div style="text-align:center;font-size:11px;color:#888"><div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้มีอำนาจลงนาม / Authorized</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px">'
+    + '<div style="text-align:center;font-size:11px;color:#888">'
+    +   '<div style="height:56px"></div>'
+    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้รับเอกสาร / Received by'
+    + '</div>'
+    + '<div style="text-align:center;font-size:11px;color:#888">'
+    +   (SIG1 ? '<img src="' + SIG1 + '" style="max-height:56px;max-width:170px;object-fit:contain;display:block;margin:0 auto 2px">' : '<div style="height:56px"></div>')
+    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้มีอำนาจลงนาม / Authorized'
+    +   (co.company_name_th ? '<div style="color:#aaa;margin-top:3px">' + escapeHtml(co.company_name_th) + '</div>' : '')
+    + '</div>'
     + '</div>';
 }
 
