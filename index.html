@@ -1528,8 +1528,33 @@ tr:hover td { background: #FFF8F0; }
       <div class="search-box">
         <input type="text" id="cust-search" placeholder="ค้นหาชื่อลูกค้า, เลขผู้เสียภาษี..." oninput="renderCustomers()">
       </div>
+      <button class="btn btn-primary" onclick="newCustomer()">➕ เพิ่มลูกค้า</button>
     </div>
     <div class="card card-scroll"><div id="cust-list"></div></div>
+  </div>
+</div>
+
+<!-- ══ CUSTOMER MODAL ══════════════════════════════════════ -->
+<div id="cust-modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeCustomerModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2 id="cust-modal-title">เพิ่มลูกค้า</h2>
+      <input type="hidden" id="cm-id">
+      <div class="grid-2">
+        <div class="field"><label>ชื่อ (ไทย) <span class="req">*</span></label><input type="text" id="cm-name_th" placeholder="บริษัท ... จำกัด"></div>
+        <div class="field"><label>ชื่อ (อังกฤษ)</label><input type="text" id="cm-name_en" placeholder="... Co., Ltd."></div>
+        <div class="field"><label>เลขผู้เสียภาษี</label><input type="text" id="cm-tax_id" placeholder="0000000000000"></div>
+        <div class="field"><label>สาขา</label><input type="text" id="cm-branch_number" placeholder="สำนักงานใหญ่ / 00000"></div>
+        <div class="field col-span-2"><label>ที่อยู่</label><textarea id="cm-address_th" rows="2"></textarea></div>
+        <div class="field"><label>ผู้ติดต่อ</label><input type="text" id="cm-contact"></div>
+        <div class="field"><label>โทรศัพท์</label><input type="text" id="cm-phone"></div>
+        <div class="field col-span-2"><label>อีเมล</label><input type="text" id="cm-email"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeCustomerModal()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="saveCustomerForm()">💾 บันทึก</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3118,11 +3143,61 @@ function renderCustomers() {
   }
   box.innerHTML = list.map(c => {
     const meta = [c.tax_id, c.phone, c.email].filter(Boolean).map(escapeHtml).join(' · ');
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)">'
-      + '<div><div style="font-weight:600">' + escapeHtml(c.name_th || c.name_en) + '</div>'
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">'
+      + '<div style="min-width:0"><div style="font-weight:600">' + escapeHtml(c.name_th || c.name_en) + '</div>'
       + '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + meta + '</div></div>'
+      + '<div style="display:flex;gap:4px;flex-shrink:0">'
+      + '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editCustomer(\'' + c.id + '\')">✏️</button>'
+      + '<button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deleteCustomerRow(\'' + c.id + '\')">🗑</button>'
+      + '</div>'
       + '</div>';
   }).join('');
+}
+
+const CUST_FIELDS = ['name_th','name_en','tax_id','branch_number','address_th','contact','phone','email'];
+
+function newCustomer() {
+  document.getElementById('cust-modal-title').textContent = 'เพิ่มลูกค้า';
+  document.getElementById('cm-id').value = '';
+  CUST_FIELDS.forEach(f => { const el = document.getElementById('cm-' + f); if (el) el.value = ''; });
+  document.getElementById('cust-modal').style.display = 'block';
+}
+
+function editCustomer(id) {
+  const c = CUSTOMERS.find(x => String(x.id) === String(id));
+  if (!c) return;
+  document.getElementById('cust-modal-title').textContent = 'แก้ไขลูกค้า';
+  document.getElementById('cm-id').value = c.id;
+  CUST_FIELDS.forEach(f => { const el = document.getElementById('cm-' + f); if (el) el.value = c[f] != null ? c[f] : ''; });
+  document.getElementById('cust-modal').style.display = 'block';
+}
+
+function closeCustomerModal() { document.getElementById('cust-modal').style.display = 'none'; }
+
+async function saveCustomerForm() {
+  const name = (document.getElementById('cm-name_th').value || '').trim();
+  if (!name) { toast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
+  const body = { id: document.getElementById('cm-id').value || undefined };
+  CUST_FIELDS.forEach(f => { body[f] = document.getElementById('cm-' + f).value; });
+  loading(true);
+  await api('saveCustomer', {}, body);
+  await loadCustomers();  // refresh CUSTOMERS + quotation dropdown
+  loading(false);
+  closeCustomerModal();
+  renderCustomers();
+  toast('✅ บันทึกลูกค้าเรียบร้อย');
+}
+
+async function deleteCustomerRow(id) {
+  const c = CUSTOMERS.find(x => String(x.id) === String(id));
+  const nm = c ? (c.name_th || c.name_en || '') : '';
+  if (!confirm('ลบลูกค้า "' + nm + '" ?\nการลบไม่สามารถยกเลิกได้')) return;
+  loading(true);
+  await api('deleteCustomer', { id });
+  await loadCustomers();
+  loading(false);
+  renderCustomers();
+  toast('🗑 ลบลูกค้าเรียบร้อย');
 }
 
 // ════════════════════════════════════════════════════════
