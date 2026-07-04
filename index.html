@@ -3406,7 +3406,7 @@ async function docSaveCustomer() {
   const name = (gvv('doc-cn') || '').trim();
   if (!name) { toast('กรอกชื่อลูกค้าก่อน', 'error'); return; }
   loading(true);
-  await api('saveCustomer', {}, {
+  const res = await api('saveCustomer', {}, {
     name_th: name, tax_id: gvv('doc-ct'), address_th: gvv('doc-ca'),
     phone: gvv('doc-cph'), email: gvv('doc-cem')
   });
@@ -3418,7 +3418,7 @@ async function docSaveCustomer() {
     opts += '<option value="' + i + '">' + escapeHtml(CUSTOMERS[i].name_th || CUSTOMERS[i].name_en) + '</option>';
   const sel = document.getElementById('doc-cust-select');
   if (sel) sel.innerHTML = opts;
-  toast('✅ บันทึกลูกค้าแล้ว');
+  toast(res && res.matchedByName ? '✅ อัปเดตข้อมูลลูกค้าเดิม (ชื่อซ้ำ)' : '✅ บันทึกลูกค้าแล้ว');
 }
 
 function addDocItem(item) {
