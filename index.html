@@ -248,6 +248,7 @@ body {
   content:''; width:30px; height:30px; border-radius:7px; flex-shrink:0;
   background:linear-gradient(135deg,#F9A825,#FFD600);
 }
+.sidebar-brand.has-logo::before { display:none; } /* hide placeholder when a real logo is set */
 .sidebar-brand small { display:block; font-size:10.5px; font-weight:500; color:rgba(255,255,255,.6); letter-spacing:.4px; }
 .sidebar-nav { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:2px; }
 .sidebar-nav a {
@@ -873,8 +874,9 @@ tr:hover td { background: #FFF8F0; }
 <div id="page-login" class="login-page" style="display:none">
   <div class="login-card">
     <div class="login-logo">
+      <img id="login-logo-img" alt="" style="display:none;max-height:70px;max-width:220px;object-fit:contain;margin:0 auto 12px">
       <div class="logo-mark">WT</div>
-      <h2>ระบบบัญชี Wintech</h2>
+      <h2 id="login-brand-name">ระบบบัญชี</h2>
       <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
     </div>
     <div class="login-error" id="login-error"></div>
@@ -903,13 +905,14 @@ tr:hover td { background: #FFF8F0; }
 <!-- ══ APP HEADER (slim top bar) ═══════════════════════════ -->
 <header class="app-header" id="app-header" style="display:none">
   <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="เมนู">☰</button>
-  <div class="logo">ระบบบัญชี <span>Accounting System</span></div>
+  <div class="logo"><b id="header-brand-name" style="font-weight:inherit">ระบบบัญชี</b> <span>Accounting System</span></div>
 </header>
 
 <!-- ══ SIDEBAR ═════════════════════════════════════════════ -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div>Wintech<br><small>ACCOUNTING SYSTEM</small></div>
+    <img id="sidebar-brand-logo" alt="" style="display:none;width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff;padding:2px;flex-shrink:0">
+    <div><span id="sidebar-brand-name">Wintech</span><br><small>ACCOUNTING SYSTEM</small></div>
   </div>
   <nav id="main-nav" class="sidebar-nav">
     <div class="sidebar-sep">ภาพรวม</div>
@@ -1331,6 +1334,7 @@ tr:hover td { background: #FFF8F0; }
     <!-- LOGO + PREVIEW -->
     <div class="section">
       <div class="section-title">โลโก้บริษัท</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">โลโก้นี้ใช้ทั้งบน <strong>เอกสารทุกชนิด</strong> และ <strong>หน้าระบบ</strong> (หน้าเข้าสู่ระบบ / เมนูด้านข้าง / ชื่อแท็บ) — เปลี่ยนได้เพื่อทำเป็นแบรนด์ของบริษัทคุณเอง</p>
       <div style="display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start">
 
         <!-- Upload zone -->
@@ -1648,6 +1652,8 @@ function showLoginPage() {
   closeSidebar();
   document.getElementById('sidebar').style.display = 'none';
   document.getElementById('sidebar-foot').style.display = 'none';
+  applyBranding();       // instant brand from cache
+  loadBranding();        // refresh brand from server (best-effort, background)
 
   // Pre-fill API URL field
   const stored = localStorage.getItem('api_url') || '';
@@ -1732,6 +1738,52 @@ function applyAssets() {
   const zone = document.getElementById('logo-preview-zone');
   if (zone && CONFIG.company_logo) showLogoThumb(CONFIG.company_logo);
   updateHeaderPreview();
+  applyBranding();
+}
+
+// White-label the app UI (login / sidebar / header / tab title) from the
+// configured company logo + name — lets each company brand it as their own.
+function applyBranding() {
+  const logo   = (CONFIG && CONFIG.company_logo) || localStorage.getItem('company_logo') || '';
+  const nameTh = (CONFIG && CONFIG.company_name_th) || localStorage.getItem('brand_name') || 'ระบบบัญชี';
+  // cache for instant branding on the next load (before login)
+  if (nameTh) localStorage.setItem('brand_name', nameTh);
+
+  // Login page
+  const li = document.getElementById('login-logo-img');
+  const lm = document.querySelector('.login-logo .logo-mark');
+  if (li) {
+    if (logo) { li.src = logo; li.style.display = 'block'; if (lm) lm.style.display = 'none'; }
+    else { li.style.display = 'none'; if (lm) lm.style.display = ''; }
+  }
+  const lb = document.getElementById('login-brand-name');
+  if (lb) lb.textContent = nameTh;
+
+  // Sidebar brand
+  const sbLogo  = document.getElementById('sidebar-brand-logo');
+  const sbName  = document.getElementById('sidebar-brand-name');
+  const sbBrand = document.querySelector('.sidebar-brand');
+  if (sbName) sbName.textContent = nameTh;
+  if (sbLogo && sbBrand) {
+    if (logo) { sbLogo.src = logo; sbLogo.style.display = 'block'; sbBrand.classList.add('has-logo'); }
+    else { sbLogo.style.display = 'none'; sbBrand.classList.remove('has-logo'); }
+  }
+
+  // Header + browser tab
+  const hb = document.getElementById('header-brand-name');
+  if (hb) hb.textContent = nameTh;
+  document.title = nameTh + ' — ระบบบัญชี';
+}
+
+// Fetch public branding (name + logo) so the login page is branded on any device
+async function loadBranding() {
+  try {
+    const b = await apiNoAuth('getBranding', {});
+    if (!b) return;
+    if (b.company_name_th) { CONFIG.company_name_th = b.company_name_th; localStorage.setItem('brand_name', b.company_name_th); }
+    if (b.logo) { CONFIG.company_logo = b.logo; localStorage.setItem('company_logo', b.logo); }
+    applyBranding();
+  } catch (e) { /* branding is best-effort */ }
 }
 
 // Re-validate the token + refresh role/display name (runs in parallel with the
