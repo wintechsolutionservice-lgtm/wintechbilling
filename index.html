@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #7B0000 0%, #B71C1C 50%, #8B0000 100%);
+  background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 50%, var(--accent-deep) 100%);
   padding: 24px;
 }
 .login-card {
@@ -41,7 +41,7 @@
   margin-bottom: 12px;
   box-shadow: 0 4px 16px rgba(249,168,37,.4);
 }
-.login-logo h2 { font-size: 17px; font-weight: 800; color: #B71C1C; margin-bottom: 2px; }
+.login-logo h2 { font-size: 17px; font-weight: 800; color: var(--accent); margin-bottom: 2px; }
 .login-logo p  { font-size: 12px; color: var(--text3); }
 .login-field { margin-bottom: 18px; }
 .login-field label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin-bottom:6px; }
@@ -56,13 +56,13 @@
   transition: border-color .15s, box-shadow .15s;
 }
 .login-field input:focus {
-  border-color: #B71C1C;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(183,28,28,.1);
 }
 .login-btn {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, #B71C1C, #D32F2F);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   color: #fff;
   border: none;
   border-radius: var(--radius);
@@ -73,7 +73,7 @@
   transition: all .15s;
   box-shadow: 0 3px 10px rgba(183,28,28,.3);
 }
-.login-btn:hover { background: linear-gradient(135deg, #7B0000, #B71C1C); }
+.login-btn:hover { background: linear-gradient(135deg, var(--accent-deep), var(--accent)); }
 .login-btn:disabled { opacity: .6; cursor: not-allowed; }
 .login-error {
   background: var(--red-lt);
@@ -144,7 +144,7 @@
 .users-table th { background:var(--bg); padding:10px 14px; font-size:12px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--border); }
 .users-table td { padding:12px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
 .users-table tr:last-child td { border-bottom:none; }
-.role-admin { background:#FDECEA; color:#B71C1C; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:700; }
+.role-admin { background:var(--accent-lt); color:var(--accent); padding:2px 10px; border-radius:12px; font-size:12px; font-weight:700; }
 .role-sales { background:#FFF8E1; color:#E65100; padding:2px 10px; border-radius:12px; font-size:12px; font-weight:700; }
 .status-on  { color:#2D7A56; font-weight:700; font-size:12px; }
 .status-off { color:#999; font-size:12px; }
@@ -162,6 +162,7 @@
   --text3:     #A08878;
   --accent:    #B71C1C;
   --accent2:   #D32F2F;
+  --accent-deep: #8B0000;
   --accent-lt: #FDECEA;
   --red:       #B71C1C;
   --red-lt:    #FDECEA;
@@ -174,6 +175,16 @@
   --shadow-md: 0 4px 12px rgba(183,28,28,.12);
 }
 
+/* ── Selectable color themes — override the accent family only ── */
+:root[data-theme="navy"]     { --accent:#1E3A8A; --accent2:#2563EB; --accent-deep:#152C6B; --accent-lt:#E8EEFB; --red:#1E3A8A; --red-lt:#E8EEFB; }
+:root[data-theme="teal"]     { --accent:#0F766E; --accent2:#14B8A6; --accent-deep:#0B554F; --accent-lt:#E1F4F1; --red:#0F766E; --red-lt:#E1F4F1; }
+:root[data-theme="green"]    { --accent:#166534; --accent2:#22A34A; --accent-deep:#0F4A26; --accent-lt:#E6F4EA; --red:#166534; --red-lt:#E6F4EA; }
+:root[data-theme="purple"]   { --accent:#6D28D9; --accent2:#8B5CF6; --accent-deep:#54209F; --accent-lt:#F1EBFB; --red:#6D28D9; --red-lt:#F1EBFB; }
+:root[data-theme="charcoal"] { --accent:#334155; --accent2:#475569; --accent-deep:#1E293B; --accent-lt:#EEF1F5; --red:#334155; --red-lt:#EEF1F5; }
+.theme-swatch { width:44px; height:44px; border-radius:10px; border:2px solid transparent; cursor:pointer; padding:0; transition:transform .1s; }
+.theme-swatch:hover { transform:scale(1.08); }
+.theme-swatch.active { border-color:var(--text2); box-shadow:0 0 0 3px var(--surface) inset; }
+
 body {
   font-family: 'Sarabun', 'IBM Plex Sans Thai', sans-serif;
   background: var(--bg);
@@ -185,7 +196,7 @@ body {
 
 /* ── Layout ───────────────────────────────────────── */
 .app-header {
-  background: linear-gradient(135deg, #8B0000 0%, #B71C1C 60%, #C62828 100%);
+  background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 60%, var(--accent2) 100%);
   color: #fff;
   padding: 0 16px;
   height: 52px;
@@ -234,7 +245,7 @@ body {
 .menu-toggle:hover { background: rgba(249,168,37,.3); }
 .sidebar {
   position: fixed; top:0; left:0; bottom:0; width: 244px;
-  background: linear-gradient(160deg,#7B0000 0%,#9A1414 55%,#B71C1C 100%);
+  background: linear-gradient(160deg, var(--accent-deep) 0%, var(--accent) 55%, var(--accent2) 100%);
   color:#fff; z-index:300; display:flex; flex-direction:column;
   transform: translateX(-100%); transition: transform .25s ease;
   box-shadow: 2px 0 18px rgba(0,0,0,.25); border-right:2px solid #F9A825;
@@ -299,7 +310,7 @@ body {
 .stat-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
 @media (min-width: 768px) { .stat-card .value { font-size: 28px; } }
 .stat-card .sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
-.stat-card.featured { background: linear-gradient(135deg, #B71C1C, #D32F2F); color:#fff; border-color: #8B0000; }
+.stat-card.featured { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; border-color: var(--accent-deep); }
 .stat-card.featured .label { color: rgba(255,255,255,.7); }
 .stat-card.featured .value { color: #FFD600; }
 .stat-card.featured .sub { color: rgba(255,255,255,.6); }
@@ -352,8 +363,8 @@ body {
   white-space: nowrap;
   text-decoration: none;
 }
-.btn-primary { background: linear-gradient(135deg, #B71C1C, #D32F2F); color: #fff; border-color: #8B0000; box-shadow: 0 2px 6px rgba(183,28,28,.3); }
-.btn-primary:hover { background: linear-gradient(135deg, #8B0000, #B71C1C); box-shadow: 0 3px 10px rgba(183,28,28,.45); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border-color: var(--accent-deep); box-shadow: 0 2px 6px rgba(183,28,28,.3); }
+.btn-primary:hover { background: linear-gradient(135deg, var(--accent-deep), var(--accent)); box-shadow: 0 3px 10px rgba(183,28,28,.45); }
 .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border2); }
 .btn-secondary:hover { background: var(--bg); }
 .btn-danger { background: var(--red-lt); color: var(--red); border-color: #f5c6c2; }
@@ -463,7 +474,7 @@ tr:hover td { background: #FFF8F0; }
   white-space: nowrap;
   flex-shrink: 0;
 }
-.tab-btn.active { color: #B71C1C; border-bottom-color: #B71C1C; font-weight:600; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight:600; }
 .tab-btn:hover:not(.active) { color: var(--text); }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
@@ -482,7 +493,7 @@ tr:hover td { background: #FFF8F0; }
 .section-title {
   font-size: 13px;
   font-weight: 700;
-  color: #B71C1C;
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: .5px;
   margin-bottom: 18px;
@@ -490,7 +501,7 @@ tr:hover td { background: #FFF8F0; }
   align-items: center;
   gap: 8px;
 }
-.section-title::before { content:''; width:3px; height:14px; background:linear-gradient(180deg,#F9A825,#B71C1C); border-radius:2px; flex-shrink:0; }
+.section-title::before { content:''; width:3px; height:14px; background:linear-gradient(180deg,var(--gold),var(--accent)); border-radius:2px; flex-shrink:0; }
 .section-title::after {
   content: '';
   flex: 1;
@@ -813,7 +824,7 @@ tr:hover td { background: #FFF8F0; }
   align-items: center;
   gap: 10px;
 }
-.toast-success { background: linear-gradient(135deg, #B71C1C, #D32F2F); color: #fff; }
+.toast-success { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
 .toast-error   { background: var(--red); color: #fff; }
 @keyframes toastIn { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
@@ -830,7 +841,7 @@ tr:hover td { background: #FFF8F0; }
 .spinner {
   width: 36px; height: 36px;
   border: 3px solid var(--border);
-  border-top-color: #B71C1C;
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin .7s linear infinite;
 }
@@ -1432,6 +1443,22 @@ tr:hover td { background: #FFF8F0; }
       <p style="font-size:12px;color:var(--text3);margin-top:10px">ลายเซ็นจะแสดงในใบเสนอราคาทุกใบ — เก็บในเบราว์เซอร์ (localStorage)</p>
     </div>
 
+    <!-- Theme -->
+    <div class="section">
+      <div class="section-title">ธีมสี (โทนของระบบ)</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">เลือกโทนสีหลักของหน้าจอ (เมนู, ปุ่ม, การ์ด) ให้เข้ากับแบรนด์บริษัท — เปลี่ยนทันทีที่คลิก</p>
+      <input type="hidden" id="cfg-ui_theme" value="maroon">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button type="button" class="theme-swatch" data-theme-id="maroon" onclick="applyTheme('maroon')" title="แดงเข้ม" style="background:linear-gradient(135deg,#8B0000,#B71C1C)"></button>
+        <button type="button" class="theme-swatch" data-theme-id="navy" onclick="applyTheme('navy')" title="น้ำเงิน" style="background:linear-gradient(135deg,#152C6B,#2563EB)"></button>
+        <button type="button" class="theme-swatch" data-theme-id="teal" onclick="applyTheme('teal')" title="เขียวน้ำทะเล" style="background:linear-gradient(135deg,#0B554F,#14B8A6)"></button>
+        <button type="button" class="theme-swatch" data-theme-id="green" onclick="applyTheme('green')" title="เขียว" style="background:linear-gradient(135deg,#0F4A26,#22A34A)"></button>
+        <button type="button" class="theme-swatch" data-theme-id="purple" onclick="applyTheme('purple')" title="ม่วง" style="background:linear-gradient(135deg,#54209F,#8B5CF6)"></button>
+        <button type="button" class="theme-swatch" data-theme-id="charcoal" onclick="applyTheme('charcoal')" title="เทาเข้ม" style="background:linear-gradient(135deg,#1E293B,#475569)"></button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:10px">* กด "บันทึกการตั้งค่า" เพื่อให้มีผลกับทุกคนในบริษัท (ถ้าไม่บันทึก จะจำเฉพาะเครื่องนี้)</p>
+    </div>
+
     <!-- Document numbering -->
     <div class="section">
       <div class="section-title">รูปแบบเลขที่เอกสาร</div>
@@ -1591,6 +1618,18 @@ tr:hover td { background: #FFF8F0; }
 let SIG1 = localStorage.getItem('sig1') || '';
 let SIG2 = localStorage.getItem('sig2') || '';
 let ASSET_CACHE = null; // logo + signatures fetched from backend (shared across devices)
+
+// Apply saved UI theme immediately (before render) to avoid a color flash
+document.documentElement.setAttribute('data-theme', localStorage.getItem('ui_theme') || 'maroon');
+function applyTheme(theme) {
+  theme = theme || 'maroon';
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('ui_theme', theme);
+  const hidden = document.getElementById('cfg-ui_theme');
+  if (hidden) hidden.value = theme;
+  document.querySelectorAll('.theme-swatch').forEach(s =>
+    s.classList.toggle('active', s.getAttribute('data-theme-id') === theme));
+}
 
 // ═══════════════════════════════════════════════════
 //  ตั้งค่า Apps Script URL ที่นี่ (ครั้งเดียว)
@@ -1870,6 +1909,9 @@ async function loadConfig() {
   }
   updateHeaderPreview();
   updateQtNumberExample();
+  // Apply company theme (shared) — overrides the per-device cached theme
+  if (CONFIG.ui_theme) applyTheme(CONFIG.ui_theme);
+  else applyTheme(localStorage.getItem('ui_theme') || 'maroon');
 }
 
 async function loadCustomers() {
@@ -3013,6 +3055,7 @@ async function saveSettings() {
       'bank_name','bank_account','bank_account_name','bank_account_type','bank_branch',
       'qt_prefix','qt_running',
       'doc_invoice_prefix','doc_taxinvoice_prefix','doc_billing_prefix','doc_receipt_prefix','doc_purchaseorder_prefix',
+      'ui_theme',
     ];
     const updates = { logo_height: logoH };
     keys.forEach(k => {
@@ -3325,7 +3368,7 @@ async function renderOverview() {
         const v = mSum[m], h = Math.round(v / maxMonth * 140);
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">'
           + '<div style="font-size:10px;color:var(--text2);margin-bottom:4px">' + (v ? fmtShort(v) : '') + '</div>'
-          + '<div title="' + thaiMonthShort(m) + ': ' + fmtNum(v) + ' บาท" style="width:100%;max-width:48px;height:' + h + 'px;min-height:' + (v ? 3 : 0) + 'px;background:linear-gradient(180deg,#C62828,#7B0000);border-radius:4px 4px 0 0"></div>'
+          + '<div title="' + thaiMonthShort(m) + ': ' + fmtNum(v) + ' บาท" style="width:100%;max-width:48px;height:' + h + 'px;min-height:' + (v ? 3 : 0) + 'px;background:linear-gradient(180deg,var(--accent2),var(--accent-deep));border-radius:4px 4px 0 0"></div>'
           + '</div>';
       }).join('')
     + '</div>'
@@ -3341,7 +3384,7 @@ async function renderOverview() {
         return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
           + '<div style="width:130px;font-size:13px;flex-shrink:0">' + b.label + '</div>'
           + '<div style="flex:1;background:var(--bg);border-radius:5px;height:22px;overflow:hidden;min-width:40px">'
-          +   '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#8B0000,#C62828);border-radius:5px"></div>'
+          +   '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,var(--accent-deep),var(--accent2));border-radius:5px"></div>'
           + '</div>'
           + '<div style="width:150px;text-align:right;flex-shrink:0"><strong style="font-family:\'IBM Plex Mono\',monospace">' + fmtNum(b.sum) + '</strong> <span style="color:var(--text3);font-size:12px">· ' + b.count + ' ฉบับ</span></div>'
           + '</div>';
