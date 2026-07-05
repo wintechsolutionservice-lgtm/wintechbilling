@@ -912,8 +912,10 @@ tr:hover td { background: #FFF8F0; }
     <div>Wintech<br><small>ACCOUNTING SYSTEM</small></div>
   </div>
   <nav id="main-nav" class="sidebar-nav">
+    <div class="sidebar-sep">ภาพรวม</div>
+    <a class="active" onclick="go('overview',this)">📊 แดชบอร์ด</a>
     <div class="sidebar-sep">เอกสาร</div>
-    <a class="active" onclick="go('dashboard',this)">📋 ใบเสนอราคา</a>
+    <a onclick="go('dashboard',this)">📋 ใบเสนอราคา</a>
     <a onclick="goDoc('invoice',this)">🧾 ใบแจ้งหนี้</a>
     <a onclick="goDoc('taxinvoice',this)">🧾 ใบกำกับภาษี</a>
     <a onclick="goDoc('billing',this)">📑 ใบวางบิล</a>
@@ -1514,6 +1516,11 @@ tr:hover td { background: #FFF8F0; }
   </div>
 </div>
 
+<!-- ══ PAGE: DASHBOARD / OVERVIEW ══════════════════════════ -->
+<div id="page-overview" class="page">
+  <div id="overview-root"></div>
+</div>
+
 <!-- ══ PAGE: BILLING DOCUMENTS (generic: invoice / tax / billing / receipt) ══ -->
 <div id="page-doc" class="page">
   <div id="doc-root"></div>
@@ -1670,7 +1677,6 @@ function applySession() {
 
 async function bootApp() {
   hidLoginPage();
-  showPage('dashboard', document.querySelector('#main-nav a'));
   initForm();
   loadSigs();
   // Fire all independent reads in parallel — each Apps Script call is a slow
@@ -1682,6 +1688,8 @@ async function bootApp() {
   await Promise.allSettled(tasks);
   applyAssets(); // after loadConfig() has replaced CONFIG, so logo isn't clobbered
   loading(false);
+  // Land on the dashboard (data is loaded now)
+  if (SESSION) showOverview(document.querySelector('#main-nav a'));
 }
 
 // Logo + signatures live in the backend (sheet "Assets") so they appear on any
@@ -3122,6 +3130,7 @@ function closeSidebar() {
   if (bd) bd.classList.remove('show');
 }
 function go(name, el) {
+  if (name === 'overview') { showOverview(el); closeSidebar(); return; }
   showPage(name, el);
   if (name === 'customers') renderCustomers();
   closeSidebar();
@@ -3129,6 +3138,145 @@ function go(name, el) {
 function goDoc(type, el) {
   showDoc(type, el);
   closeSidebar();
+}
+
+// ════════════════════════════════════════════════════════
+//  DASHBOARD / OVERVIEW
+// ════════════════════════════════════════════════════════
+const TH_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function thaiMonthShort(ym) { // "YYYY-MM" -> "ก.ค. 69"
+  const [y, m] = String(ym).split('-').map(Number);
+  return (TH_MONTHS_SHORT[(m || 1) - 1] || '') + ' ' + String((y + 543) % 100).padStart(2, '0');
+}
+function fmtShort(v) { // compact number for chart labels
+  v = Number(v) || 0;
+  if (v >= 1e6) return (v / 1e6).toFixed(v % 1e6 ? 1 : 0) + 'M';
+  if (v >= 1e3) return Math.round(v / 1e3) + 'K';
+  return String(Math.round(v));
+}
+
+async function showOverview(el) {
+  showPage('overview', el);
+  await renderOverview();
+}
+
+async function renderOverview() {
+  const root = document.getElementById('overview-root');
+  root.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">กำลังโหลดสรุปข้อมูล...</div>';
+  const docs = await api('getDocuments') || [];   // all document types
+  const num  = v => parseFloat(v) || 0;
+  const monthOf = iso => String(iso || '').slice(0, 7);
+
+  const now = new Date();
+  const ym  = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+  // Aggregate by document type
+  const order = ['invoice','taxinvoice','billing','receipt','purchaseorder'];
+  const byType = {};
+  order.forEach(t => byType[t] = { count: 0, sum: 0 });
+  docs.forEach(d => {
+    if (!byType[d.doc_type]) byType[d.doc_type] = { count: 0, sum: 0 };
+    byType[d.doc_type].count++;
+    byType[d.doc_type].sum += num(d.total);
+  });
+  const qCount = allQuotations.length;
+  const qSum   = allQuotations.reduce((s, q) => s + num(q.total), 0);
+
+  // KPIs
+  const outstanding = docs
+    .filter(d => ['invoice','taxinvoice','billing'].includes(d.doc_type) && ['draft','sent'].includes(d.status))
+    .reduce((s, d) => s + num(d.total), 0);
+  const received = byType.receipt ? byType.receipt.sum : 0;
+  const monthDocs = docs.filter(d => monthOf(d.doc_date) === ym);
+  const monthCount = monthDocs.length;
+  const monthSumTotal = monthDocs.reduce((s, d) => s + num(d.total), 0);
+
+  // Monthly series — last 6 months, sum of all issued documents
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  const mSum = {}; months.forEach(m => mSum[m] = 0);
+  docs.forEach(d => { const m = monthOf(d.doc_date); if (m in mSum) mSum[m] += num(d.total); });
+  const maxMonth = Math.max(1, ...months.map(m => mSum[m]));
+
+  // Breakdown rows (quotation + doc types), sorted by value
+  const breakdown = [{ key: 'quotation', label: '📋 ใบเสนอราคา', count: qCount, sum: qSum }]
+    .concat(order.map(t => ({ key: t, label: DOC_TYPES[t].icon + ' ' + DOC_TYPES[t].th, count: byType[t].count, sum: byType[t].sum })));
+  const maxBreak = Math.max(1, ...breakdown.map(b => b.sum));
+
+  // Recent documents
+  const recent = docs.slice()
+    .sort((a, b) => String(b.created_at || b.doc_date).localeCompare(String(a.created_at || a.doc_date)))
+    .slice(0, 8);
+
+  const kpi = (label, value, sub, featured, color) =>
+    '<div class="stat-card' + (featured ? ' featured' : '') + '">'
+    + '<div class="label">' + label + '</div>'
+    + '<div class="value"' + (color ? ' style="color:' + color + '"' : '') + '>' + value + '</div>'
+    + '<div class="sub">' + sub + '</div></div>';
+
+  root.innerHTML =
+    '<div class="dashboard">'
+    + '<div class="page-title">📊 แดชบอร์ด</div>'
+    + '<div class="page-subtitle">ภาพรวมเอกสารและยอดเงิน</div>'
+    // KPI row
+    + '<div class="stats-row">'
+    + kpi('ค้างชำระ', fmtNum(outstanding), 'แจ้งหนี้/กำกับภาษี/วางบิล ที่ยังไม่ชำระ (บาท)', true)
+    + kpi('รับชำระแล้ว', fmtNum(received), 'รวมใบเสร็จรับเงิน (บาท)', false, 'var(--accent2)')
+    + kpi('เอกสารเดือนนี้', String(monthCount), fmtNum(monthSumTotal) + ' บาท', false, 'var(--amber)')
+    + kpi('ใบเสนอราคา', String(qCount), fmtNum(qSum) + ' บาท', false)
+    + '</div>'
+    // Monthly bar chart (single-series magnitude)
+    + '<div class="card" style="margin-bottom:16px">'
+    + '<div style="font-weight:700">มูลค่าเอกสารที่ออกรายเดือน</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">รวมทุกชนิดเอกสาร · 6 เดือนล่าสุด (บาท)</div>'
+    + '<div style="display:flex;align-items:flex-end;gap:10px;height:170px;border-bottom:2px solid var(--border)">'
+    + months.map(m => {
+        const v = mSum[m], h = Math.round(v / maxMonth * 140);
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">'
+          + '<div style="font-size:10px;color:var(--text2);margin-bottom:4px">' + (v ? fmtShort(v) : '') + '</div>'
+          + '<div title="' + thaiMonthShort(m) + ': ' + fmtNum(v) + ' บาท" style="width:100%;max-width:48px;height:' + h + 'px;min-height:' + (v ? 3 : 0) + 'px;background:linear-gradient(180deg,#C62828,#7B0000);border-radius:4px 4px 0 0"></div>'
+          + '</div>';
+      }).join('')
+    + '</div>'
+    + '<div style="display:flex;gap:10px;margin-top:6px">'
+    + months.map(m => '<div style="flex:1;text-align:center;font-size:11px;color:var(--text3)">' + thaiMonthShort(m) + '</div>').join('')
+    + '</div>'
+    + '</div>'
+    // Breakdown by type (single-series magnitude bars)
+    + '<div class="card" style="margin-bottom:16px">'
+    + '<div style="font-weight:700;margin-bottom:14px">แยกตามชนิดเอกสาร</div>'
+    + breakdown.map(b => {
+        const pct = Math.round(b.sum / maxBreak * 100);
+        return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+          + '<div style="width:130px;font-size:13px;flex-shrink:0">' + b.label + '</div>'
+          + '<div style="flex:1;background:var(--bg);border-radius:5px;height:22px;overflow:hidden;min-width:40px">'
+          +   '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#8B0000,#C62828);border-radius:5px"></div>'
+          + '</div>'
+          + '<div style="width:150px;text-align:right;flex-shrink:0"><strong style="font-family:\'IBM Plex Mono\',monospace">' + fmtNum(b.sum) + '</strong> <span style="color:var(--text3);font-size:12px">· ' + b.count + ' ฉบับ</span></div>'
+          + '</div>';
+      }).join('')
+    + '</div>'
+    // Recent documents
+    + '<div class="card card-scroll">'
+    + '<div style="font-weight:700;margin-bottom:12px">เอกสารล่าสุด</div>'
+    + (recent.length
+        ? '<table><thead><tr><th>ชนิด</th><th>เลขที่</th><th>คู่ค้า</th><th>วันที่</th><th style="text-align:right">มูลค่า</th><th>สถานะ</th></tr></thead><tbody>'
+          + recent.map(d =>
+              '<tr>'
+              + '<td>' + (DOC_TYPES[d.doc_type] ? DOC_TYPES[d.doc_type].icon + ' ' + DOC_TYPES[d.doc_type].th : escapeHtml(d.doc_type)) + '</td>'
+              + '<td><span class="mono">' + escapeHtml(d.doc_number) + '</span></td>'
+              + '<td>' + escapeHtml(d.customer_name_th) + '</td>'
+              + '<td>' + formatDate(d.doc_date) + '</td>'
+              + '<td class="mono" style="text-align:right">' + fmtNum(d.total) + '</td>'
+              + '<td><span class="badge badge-' + (d.status || 'draft') + '">' + statusLabel(d.status) + '</span></td>'
+              + '</tr>').join('')
+          + '</tbody></table>'
+        : '<div style="text-align:center;padding:30px;color:var(--text3)">ยังไม่มีเอกสาร</div>')
+    + '</div>'
+    + '</div>';
 }
 
 // ════════════════════════════════════════════════════════
