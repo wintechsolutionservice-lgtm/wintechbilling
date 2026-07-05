@@ -2985,6 +2985,9 @@ async function doLogin() {
     document.getElementById('login-password').value = '';
     applySession();
     await bootApp();
+    if (result.warn_default_password) {
+      toast('⚠️ ยังใช้รหัสผ่านเริ่มต้น (admin1234) — ควรเปลี่ยนที่ ตั้งค่า → ผู้ใช้งาน', 'error');
+    }
   } catch(e) {
     errEl.textContent = e.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
     errEl.style.display = 'block';
@@ -3273,12 +3276,10 @@ function renderDocRows() {
     + '</tr>').join('');
 }
 
-async function newDoc() {
+function newDoc() {
   docState.editingId = null;
-  loading(true);
-  const num = await api('nextDocNumber', { type: docState.type });
-  loading(false);
-  buildDocForm({ doc_number: num || '', doc_date: isoToDisplay(new Date()), due_date: addDays(30) });
+  // Number is issued on save (avoids gaps from abandoned drafts) — leave blank now
+  buildDocForm({ doc_number: '', doc_date: isoToDisplay(new Date()), due_date: addDays(30) });
 }
 
 async function editDoc(id) {
@@ -3327,7 +3328,7 @@ function buildDocForm(doc) {
     + '</div></div>'
     // doc info
     + '<div class="section"><div class="grid-2">'
-    + '<div class="field"><label>เลขที่</label><input id="doc-number" value="' + escapeHtml(doc.doc_number || '') + '"></div>'
+    + '<div class="field"><label>เลขที่</label><input id="doc-number" value="' + escapeHtml(doc.doc_number || '') + '" placeholder="ออกอัตโนมัติเมื่อบันทึก"></div>'
     + '<div class="field"><label>วันที่ (วว/ดด/ปปปป)</label><input id="doc-date" value="' + escapeHtml(doc.doc_date || '') + '"></div>'
     + (showDue
         ? '<div class="field"><label>ครบกำหนด / Due Date</label><input id="doc-due" value="' + escapeHtml(doc.due_date || '') + '"></div>'
@@ -3516,7 +3517,10 @@ async function saveDoc() {
     res = await api('updateDocument', {}, body);
   } else {
     res = await api('saveDocument', {}, body);
-    if (res && res.id) docState.editingId = res.id;
+    if (res && res.id) {
+      docState.editingId = res.id;
+      if (res.doc_number) setV('doc-number', res.doc_number); // reflect issued number
+    }
   }
   if (res) await loadDocList(docState.type);
   loading(false);
@@ -3609,6 +3613,15 @@ function docInnerHTML(d) {
     + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(parseFloat(d.total) || 0)) + ')</div>'
     + '</div>'
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
+    // Bank / payment details — shown on money-collecting docs, not on purchase orders
+    + ((d.doc_type !== 'purchaseorder' && (co.bank_name || co.bank_account)) ?
+        '<div style="margin-top:14px;padding:10px 14px;background:#f9f8f5;border:1px solid #e5e3dc;border-radius:7px;font-size:11.5px;color:#444">'
+        + '<strong style="color:#B71C1C">ชำระเงินที่:</strong> ' + escapeHtml(co.bank_name || '')
+        + (co.bank_account ? ' &nbsp;|&nbsp; เลขบัญชี: <strong>' + escapeHtml(co.bank_account) + '</strong>' : '')
+        + (co.bank_account_name ? ' &nbsp;|&nbsp; ชื่อบัญชี: ' + escapeHtml(co.bank_account_name) : '')
+        + (co.bank_account_type ? ' (' + escapeHtml(co.bank_account_type) + ')' : '')
+        + (co.bank_branch ? ' &nbsp;|&nbsp; สาขา: ' + escapeHtml(co.bank_branch) : '')
+        + '</div>' : '')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px">'
     + '<div style="text-align:center;font-size:11px;color:#888">'
     +   '<div style="height:56px"></div>'
