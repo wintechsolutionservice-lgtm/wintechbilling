@@ -1300,6 +1300,13 @@ tr:hover td { background: #FFF8F0; }
     <span class="preview-title">ตัวอย่างก่อนพิมพ์</span>
     <div class="preview-actions">
       <button class="btn btn-secondary btn-sm" onclick="showPage('form', null)">← แก้ไข</button>
+      <select id="qt-convert-type" onchange="convertQtTo(this.value); this.value='';" style="padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;font-size:13px;background:var(--surface);cursor:pointer">
+        <option value="">➡️ สร้างเอกสารจากใบนี้...</option>
+        <option value="invoice">→ ใบแจ้งหนี้</option>
+        <option value="taxinvoice">→ ใบกำกับภาษี</option>
+        <option value="billing">→ ใบวางบิล</option>
+        <option value="receipt">→ ใบเสร็จรับเงิน</option>
+      </select>
       <button class="btn btn-primary btn-sm" onclick="printDoc()">🖨 พิมพ์ / บันทึก PDF</button>
     </div>
   </div>
@@ -1480,6 +1487,13 @@ tr:hover td { background: #FFF8F0; }
         </div>
         <div class="field"><label>สาขาธนาคาร</label><input type="text" id="cfg-bank_branch"></div>
       </div>
+    </div>
+
+    <!-- Backup (admin only) -->
+    <div class="section" id="section-backup">
+      <div class="section-title">สำรองข้อมูล</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">ดาวน์โหลดข้อมูลทั้งหมด (ลูกค้า, ใบเสนอราคา, เอกสาร, โลโก้/ลายเซ็น) เป็นไฟล์ JSON เก็บไว้ — ควรทำเป็นระยะ เผื่อกู้คืน</p>
+      <button class="btn btn-secondary" onclick="backupData()">⬇️ ดาวน์โหลดไฟล์สำรอง (JSON)</button>
     </div>
 
     <!-- Users Management (admin only) -->
@@ -1670,9 +1684,11 @@ function applySession() {
   // Hide settings nav for sales role
   const navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.style.display = SESSION.role === 'admin' ? '' : 'none';
-  // Hide users section if not admin
+  // Hide admin-only sections if not admin
   const secUsers = document.getElementById('section-users');
   if (secUsers) secUsers.style.display = SESSION.role === 'admin' ? '' : 'none';
+  const secBackup = document.getElementById('section-backup');
+  if (secBackup) secBackup.style.display = SESSION.role === 'admin' ? '' : 'none';
 }
 
 async function bootApp() {
@@ -2273,6 +2289,7 @@ async function saveQuotation() {
 
 async function saveAndPreview() {
   await saveQuotation();
+  previewedQtId = currentQT.id;
   renderPreview(buildQTBody());
   showPage('preview', null);
 }
@@ -2346,6 +2363,7 @@ async function previewQuotation(id) {
   const qt = await api('getQuotation', { id });
   loading(false);
   if (!qt) return;
+  previewedQtId = id;
   renderPreview(qt);
   showPage('preview', null);
 }
@@ -2963,6 +2981,24 @@ async function saveSettings() {
   toast('✅ บันทึกการตั้งค่าเรียบร้อย');
 }
 
+// ── BACKUP ────────────────────────────────────────────────
+async function backupData() {
+  loading(true);
+  const data = await api('exportAll', {}, {});
+  loading(false);
+  if (!data) return;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'wintech-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✅ ดาวน์โหลดไฟล์สำรองแล้ว');
+}
+
 // ── LOGIN / LOGOUT ────────────────────────────────────────
 async function doLogin() {
   const username = document.getElementById('login-username').value.trim();
@@ -3363,6 +3399,56 @@ const DOC_TYPES = {
   purchaseorder: { th:'ใบสั่งซื้อ',      en:'Purchase Order', icon:'🛒', partyTh:'ผู้ขาย', partyEn:'Supplier' },
 };
 const docState = { type: null, list: [], editingId: null };
+let previewedQtId = null; // quotation currently shown in the preview page (for convert)
+
+// Highlight the sidebar link for a document type (used when jumping to the form)
+function highlightDocNav(type) {
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('#main-nav a').forEach(a => {
+    if ((a.getAttribute('onclick') || '') === "goDoc('" + type + "',this)") a.classList.add('active');
+  });
+}
+
+function convertQtTo(type) {
+  if (type) createDocFromQuotation(previewedQtId, type);
+}
+
+// Build a new billing document prefilled from a quotation (customer + items)
+async function createDocFromQuotation(qtId, type) {
+  if (!qtId) { toast('กรุณาบันทึกใบเสนอราคาก่อน', 'error'); return; }
+  loading(true);
+  const qt = await api('getQuotation', { id: qtId });
+  loading(false);
+  if (!qt) return;
+  docState.type = type;
+  docState.editingId = null;
+  showPage('doc', null);
+  highlightDocNav(type);
+  buildDocForm({
+    doc_number: '',
+    doc_date: isoToDisplay(new Date()),
+    due_date: addDays(30),
+    ref_no: qt.qt_number || '',
+    customer_name_th: qt.customer_name_th,
+    customer_tax_id: qt.customer_tax_id,
+    customer_address_th: qt.customer_address_th,
+    customer_phone: qt.customer_phone,
+    customer_email: qt.customer_email,
+    subject: qt.subject_th,
+    payment_terms: qt.payment_terms || qt.payment_terms_th || '',
+    discount: qt.discount,
+    vat_type: (qt.vat_type && qt.vat_type !== 'none') ? qt.vat_type : 'none',
+    items: (qt.items || []).map(it => ({
+      description: it.description_th || it.description_en || '',
+      qty: it.qty,
+      unit: it.unit_th || it.unit_en || '',
+      unit_price: it.unit_price,
+      amount: it.amount
+    }))
+  });
+  closeSidebar();
+  toast('📄 เตรียม' + DOC_TYPES[type].th + 'จากใบเสนอราคา ' + (qt.qt_number || '') + ' — ตรวจสอบแล้วกดบันทึก');
+}
 
 function gvv(id) { const e = document.getElementById(id); return e ? e.value : ''; }
 function setV(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
@@ -3384,16 +3470,30 @@ async function loadDocList(type) {
 
 function renderDocList() {
   const cfg = DOC_TYPES[docState.type];
+  const list = docState.list;
+  const num = v => parseFloat(v) || 0;
+  const totalVal = list.reduce((s, d) => s + num(d.total), 0);
+  const cnt = s => list.filter(d => (d.status || 'draft') === s).length;
+  const selStyle = 'padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;background:var(--surface);outline:none';
   document.getElementById('doc-root').innerHTML =
     '<div class="dashboard">'
     + '<div class="page-title">' + cfg.icon + ' ' + cfg.th + '</div>'
     + '<div class="page-subtitle">' + cfg.en + ' — จัดการ' + cfg.th + 'ทั้งหมด</div>'
+    + '<div class="stats-row">'
+    + '<div class="stat-card featured"><div class="label">ทั้งหมด</div><div class="value">' + list.length + '</div><div class="sub">' + fmtNum(totalVal) + ' บาท</div></div>'
+    + '<div class="stat-card"><div class="label">Draft</div><div class="value" style="color:var(--text3)">' + cnt('draft') + '</div><div class="sub">ร่าง</div></div>'
+    + '<div class="stat-card"><div class="label">ส่งแล้ว</div><div class="value" style="color:var(--amber)">' + cnt('sent') + '</div><div class="sub">รอดำเนินการ</div></div>'
+    + '<div class="stat-card"><div class="label">อนุมัติ/ชำระ</div><div class="value" style="color:var(--accent2)">' + cnt('approved') + '</div><div class="sub">เสร็จสิ้น</div></div>'
+    + '</div>'
     + '<div class="toolbar">'
-    + '<div class="search-box"><input type="text" id="doc-search" placeholder="ค้นหาเลขที่, ลูกค้า..." oninput="renderDocRows()"></div>'
+    + '<div class="search-box"><input type="text" id="doc-search" placeholder="ค้นหาเลขที่, ' + cfg.partyTh + '..." oninput="renderDocRows()"></div>'
+    + '<select id="doc-filter-status" onchange="renderDocRows()" style="' + selStyle + '">'
+    +   '<option value="">สถานะทั้งหมด</option><option value="draft">Draft</option><option value="sent">ส่งแล้ว</option><option value="approved">อนุมัติ/ชำระแล้ว</option><option value="rejected">ยกเลิก</option>'
+    + '</select>'
     + '<button class="btn btn-primary" onclick="newDoc()">➕ สร้าง' + cfg.th + '</button>'
     + '</div>'
     + '<div class="card card-scroll"><table><thead><tr>'
-    + '<th>เลขที่</th><th>วันที่</th><th>ลูกค้า</th><th style="text-align:right">มูลค่า</th><th>สถานะ</th><th>จัดการ</th>'
+    + '<th>เลขที่</th><th>วันที่</th><th>' + cfg.partyTh + '</th><th style="text-align:right">มูลค่า</th><th>สถานะ</th><th>จัดการ</th>'
     + '</tr></thead><tbody id="doc-tbody"></tbody></table></div>'
     + '</div>';
   renderDocRows();
@@ -3401,8 +3501,10 @@ function renderDocList() {
 
 function renderDocRows() {
   const q = (document.getElementById('doc-search')?.value || '').toLowerCase();
+  const st = document.getElementById('doc-filter-status')?.value || '';
   const rows = docState.list.filter(d =>
-    !q || ((d.doc_number||'') + (d.customer_name_th||'')).toLowerCase().includes(q));
+    (!q || ((d.doc_number||'') + (d.customer_name_th||'')).toLowerCase().includes(q))
+    && (!st || (d.status || 'draft') === st));
   const tb = document.getElementById('doc-tbody');
   if (!tb) return;
   if (!rows.length) {
@@ -3455,7 +3557,11 @@ async function deleteDoc(id, num) {
   toast('🗑 ลบเอกสารเรียบร้อย');
 }
 
-function backToDocList() { renderDocList(); window.scrollTo({ top:0, behavior:'smooth' }); }
+async function backToDocList() {
+  await loadDocList(docState.type); // ensure the list is fresh (e.g. after convert)
+  renderDocList();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
 
 function buildDocForm(doc) {
   doc = doc || {};
@@ -3518,7 +3624,7 @@ function buildDocForm(doc) {
     + '<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--text3)">ยอดรวมก่อนภาษี</span><span id="doc-sub" class="mono">0.00</span></div>'
     + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="color:var(--text3)">ส่วนลด</span><input id="doc-discount" type="number" min="0" step="0.01" value="' + (doc.discount != null ? escapeHtml(doc.discount) : 0) + '" oninput="docCalc()" style="width:120px;text-align:right;padding:4px 8px"></div>'
     + '<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--text3)">ยอดหลังหักส่วนลด</span><span id="doc-after" class="mono">0.00</span></div>'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text3)"><input type="checkbox" id="doc-vat" ' + (doc.vat_type === 'none' ? '' : 'checked') + ' onchange="docCalc()"> ภาษีมูลค่าเพิ่ม 7%</label><span id="doc-vat-amt" class="mono">0.00</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="color:var(--text3);display:flex;align-items:center;gap:6px">VAT <select id="doc-vat-type" onchange="docCalc()" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px"><option value="none">ไม่มี</option><option value="exclusive">แยกนอก 7%</option><option value="inclusive">รวมใน 7%</option></select></span><span id="doc-vat-amt" class="mono">0.00</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px;font-weight:700;font-size:17px;color:var(--accent)"><span>ยอดรวมทั้งสิ้น</span><span id="doc-total" class="mono">0.00</span></div>'
     + '</div></div>'
     // note + status
@@ -3532,6 +3638,7 @@ function buildDocForm(doc) {
     + '</div>';
 
   setV('doc-status', doc.status || 'draft');
+  setV('doc-vat-type', doc.vat_type || 'exclusive');
   const items = doc.items || [];
   if (items.length) items.forEach(it => addDocItem(it));
   else addDocItem();
@@ -3599,12 +3706,14 @@ function docCalc() {
   let disc = parseFloat(gvv('doc-discount')) || 0;
   if (disc > sub) disc = sub;
   const after = sub - disc;
-  const hasVat = document.getElementById('doc-vat').checked;
-  const vat = hasVat ? after * 0.07 : 0;
+  const vatType = gvv('doc-vat-type');
+  let vat = 0, grand = after;
+  if (vatType === 'exclusive') { vat = after * 0.07; grand = after + vat; }
+  else if (vatType === 'inclusive') { vat = after - (after / 1.07); grand = after; }
   document.getElementById('doc-sub').textContent = fmtNum(sub);
   document.getElementById('doc-after').textContent = fmtNum(after);
   document.getElementById('doc-vat-amt').textContent = fmtNum(vat);
-  document.getElementById('doc-total').textContent = fmtNum(after + vat);
+  document.getElementById('doc-total').textContent = fmtNum(grand);
 }
 
 function getDocItems() {
@@ -3625,8 +3734,10 @@ function buildDocBody() {
   let disc = parseFloat(gvv('doc-discount')) || 0;
   if (disc > sub) disc = sub;
   const after = sub - disc;
-  const hasVat = document.getElementById('doc-vat').checked;
-  const vat = hasVat ? after * 0.07 : 0;
+  const vatType = gvv('doc-vat-type');
+  let vat = 0, grand = after;
+  if (vatType === 'exclusive') { vat = after * 0.07; grand = after + vat; }
+  else if (vatType === 'inclusive') { vat = after - (after / 1.07); grand = after; }
   return {
     id: docState.editingId || undefined,
     doc_type: docState.type,
@@ -3645,9 +3756,9 @@ function buildDocBody() {
     subtotal: sub.toFixed(2),
     discount: disc.toFixed(2),
     after_discount: after.toFixed(2),
-    vat_type: hasVat ? 'exclusive' : 'none',
+    vat_type: vatType,
     vat_amount: vat.toFixed(2),
-    total: (after + vat).toFixed(2),
+    total: grand.toFixed(2),
     status: gvv('doc-status') || 'draft',
     items: items,
   };
@@ -3756,8 +3867,9 @@ function docInnerHTML(d) {
     + '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ยอดรวมก่อนภาษี</span><span>' + fmtNum(d.subtotal) + '</span></div>'
     + (disc > 0 ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ส่วนลด</span><span>-' + fmtNum(disc) + '</span></div>' : '')
     + (disc > 0 ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ยอดหลังหักส่วนลด</span><span>' + fmtNum(d.after_discount) + '</span></div>' : '')
-    + (hasVat ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ภาษีมูลค่าเพิ่ม 7%</span><span>' + fmtNum(d.vat_amount) + '</span></div>' : '')
+    + (d.vat_type === 'exclusive' ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ภาษีมูลค่าเพิ่ม 7%</span><span>' + fmtNum(d.vat_amount) + '</span></div>' : '')
     + '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #ddd;margin-top:4px;font-weight:700;font-size:14px;color:#B71C1C"><span>ยอดรวมทั้งสิ้น</span><span>' + fmtNum(d.total) + '</span></div>'
+    + (d.vat_type === 'inclusive' ? '<div style="text-align:right;font-size:10px;color:#999;margin-top:1px">(ราคารวมภาษีมูลค่าเพิ่ม 7% แล้ว = ' + fmtNum(d.vat_amount) + ')</div>' : '')
     + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(parseFloat(d.total) || 0)) + ')</div>'
     + '</div>'
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
