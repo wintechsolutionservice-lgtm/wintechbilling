@@ -2752,7 +2752,9 @@ function printDoc() {
     : '';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <!-- Lock the layout width to A4 (794px) so mobile lays out the header the
+         same as desktop instead of squeezing it to the phone's screen width. -->
+    <meta name="viewport" content="width=794">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
       * { box-sizing:border-box; margin:0; padding:0; }
@@ -2809,7 +2811,7 @@ function printDoc() {
       .no-print span { color:rgba(255,255,255,.75); font-size:12px; }
       table { border-collapse:collapse; }
       .sig-block { margin-top:32px; }
-      .wrap { padding:16px; }
+      .wrap { width:794px; max-width:100%; margin:0 auto; padding:16px; }
 
       @page { @bottom-right { content: "หน้า " counter(page); font-size:10px; color:#999; font-family:'Sarabun',sans-serif; } }
     </style>
@@ -4019,6 +4021,8 @@ function docPrint() {
   const w = window.open('', '_blank');
   if (!w) { toast('กรุณาอนุญาต popup แล้วลองใหม่', 'error'); return; }
   w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
+    // Lock layout width to A4 (794px) so mobile matches desktop, not the phone width.
+    + '<meta name="viewport" content="width=794">'
     + '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
     + '<style>' + css + '</style></head><body>' + el.innerHTML + '</body></html>');
   w.document.close();
