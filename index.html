@@ -4084,8 +4084,9 @@ function buildDocBody() {
 
 async function saveDoc() {
   const body = buildDocBody();
-  if (!body.doc_number || !body.customer_name_th) {
-    toast('❌ กรุณากรอกเลขที่และชื่อลูกค้า', 'error');
+  // doc_number is issued by the backend on save when blank, so it's not required here.
+  if (!body.customer_name_th) {
+    toast('❌ กรุณากรอกชื่อลูกค้า', 'error');
     return false;
   }
   loading(true);
