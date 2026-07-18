@@ -1506,9 +1506,33 @@ tr:hover td { background: var(--accent-lt); }
           <input type="text" id="cfg-doc_purchaseorder_prefix" placeholder="PO" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
         </div>
       </div>
+      <div class="section-title" style="margin-top:18px;font-size:14px">เลขล่าสุด (ปีนี้) — ตั้งเพื่อเริ่มนับต่อจากเลขที่มีอยู่</div>
+      <div class="grid-4" style="margin-top:8px">
+        <div class="field">
+          <label>ใบแจ้งหนี้</label>
+          <input type="number" id="setnum-invoice" min="0" placeholder="ปัจจุบัน 0" title="เว้นว่าง = ไม่เปลี่ยน · ระบบจะออกเลขถัดไปจากค่านี้">
+        </div>
+        <div class="field">
+          <label>ใบกำกับภาษี</label>
+          <input type="number" id="setnum-taxinvoice" min="0" placeholder="ปัจจุบัน 0" title="เว้นว่าง = ไม่เปลี่ยน · ระบบจะออกเลขถัดไปจากค่านี้">
+        </div>
+        <div class="field">
+          <label>ใบวางบิล</label>
+          <input type="number" id="setnum-billing" min="0" placeholder="ปัจจุบัน 0" title="เว้นว่าง = ไม่เปลี่ยน">
+        </div>
+        <div class="field">
+          <label>ใบเสร็จรับเงิน</label>
+          <input type="number" id="setnum-receipt" min="0" placeholder="ปัจจุบัน 0" title="เว้นว่าง = ไม่เปลี่ยน">
+        </div>
+        <div class="field">
+          <label>ใบสั่งซื้อ</label>
+          <input type="number" id="setnum-purchaseorder" min="0" placeholder="ปัจจุบัน 0" title="เว้นว่าง = ไม่เปลี่ยน">
+        </div>
+      </div>
       <div style="margin-top:14px;padding:12px 16px;background:var(--amber-lt);border:1px solid #F9A825;border-radius:var(--radius);font-size:13px">
-        📌 <strong>รูปแบบ:</strong> <code style="font-family:'IBM Plex Mono',monospace">[PREFIX]-[YYYYMM]-[NNNNN]</code>
-        &nbsp;→&nbsp; เลขที่จะ <strong>รีเซ็ตเป็น 00001 อัตโนมัติเมื่อขึ้นเดือนใหม่</strong> (ทุกชนิดเอกสารแยกเลขรันกัน)
+        📌 <strong>รูปแบบเอกสาร:</strong> <code style="font-family:'IBM Plex Mono',monospace">[PREFIX]-[พ.ศ.]-[NNNN]</code>
+        &nbsp;→&nbsp; เช่น <code style="font-family:'IBM Plex Mono',monospace">INV-2569-0007</code> · เลขที่จะ <strong>รีเซ็ตเป็น 0001 อัตโนมัติเมื่อขึ้นปีใหม่</strong> (ทุกชนิดเอกสารแยกเลขรันกัน)<br>
+        <span style="color:var(--text3)">หมายเหตุ: ใบเสนอราคายังใช้รูปแบบรายเดือน <code style="font-family:'IBM Plex Mono',monospace">[PREFIX]-[YYYYMM]-[NNNNN]</code></span>
       </div>
     </div>
 
@@ -1924,6 +1948,13 @@ async function loadConfig() {
   }
   updateHeaderPreview();
   updateQtNumberExample();
+  // Show each document type's current running counter as a placeholder hint.
+  // The inputs stay blank (blank = leave unchanged) so a normal save never
+  // touches the counters — only an explicit value overrides them.
+  ['invoice','taxinvoice','billing','receipt','purchaseorder'].forEach(t => {
+    const el = document.getElementById('setnum-' + t);
+    if (el) { el.value = ''; el.placeholder = 'ปัจจุบัน ' + (CONFIG['doc_' + t + '_running'] || 0); }
+  });
   // Apply company theme (shared) — overrides the per-device cached theme
   if (CONFIG.ui_theme) applyTheme(CONFIG.ui_theme);
   else applyTheme(localStorage.getItem('ui_theme') || 'maroon');
@@ -3094,6 +3125,17 @@ async function saveSettings() {
     keys.forEach(k => {
       const el = document.getElementById('cfg-' + k);
       if (el) updates[k] = el.value;
+    });
+    // Per-document-type running counter: only send when the user typed a value
+    // (blank = leave unchanged). Stamp the current Buddhist year alongside so the
+    // seeded counter isn't wiped by the new-year reset in nextDocNumber().
+    const beYear = String(new Date().getFullYear() + 543);
+    ['invoice','taxinvoice','billing','receipt','purchaseorder'].forEach(t => {
+      const el = document.getElementById('setnum-' + t);
+      if (el && el.value !== '') {
+        updates['doc_' + t + '_running'] = el.value;
+        updates['doc_' + t + '_month']   = beYear;
+      }
     });
     loading(true);
     await api('saveConfig', {}, updates);
