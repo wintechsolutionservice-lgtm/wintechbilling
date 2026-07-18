@@ -2920,7 +2920,12 @@ async function copyQuotation(id) {
 }
 
 async function confirmDelete(id, num) {
-  if (!confirm(`ลบใบเสนอราคา ${num} ?\nการลบไม่สามารถยกเลิกได้`)) return;
+  const ok = await confirmModal({
+    title: '🗑 ลบใบเสนอราคา',
+    message: 'ต้องการลบใบเสนอราคา ' + num + ' ?\nการลบไม่สามารถยกเลิกได้',
+    confirmText: 'ยืนยันลบ', danger: true,
+  });
+  if (!ok) return;
   loading(true);
   await api('deleteQuotation', { id });
   await loadQuotations();
@@ -3264,8 +3269,12 @@ async function saveUser() {
 }
 
 async function confirmDeleteUser(id, username) {
-  if (!confirm(`ลบผู้ใช้ "${username}" ?
-การลบไม่สามารถยกเลิกได้`)) return;
+  const ok = await confirmModal({
+    title: '🗑 ลบผู้ใช้',
+    message: 'ต้องการลบผู้ใช้ "' + username + '" ?\nการลบไม่สามารถยกเลิกได้',
+    confirmText: 'ยืนยันลบ', danger: true,
+  });
+  if (!ok) return;
   loading(true);
   await api('deleteUser', {}, { id });
   await loadUsers();
@@ -3501,7 +3510,12 @@ async function saveCustomerForm() {
 async function deleteCustomerRow(id) {
   const c = CUSTOMERS.find(x => String(x.id) === String(id));
   const nm = c ? (c.name_th || c.name_en || '') : '';
-  if (!confirm('ลบลูกค้า "' + nm + '" ?\nการลบไม่สามารถยกเลิกได้')) return;
+  const ok = await confirmModal({
+    title: '🗑 ลบลูกค้า',
+    message: 'ต้องการลบลูกค้า "' + nm + '" ?\nการลบไม่สามารถยกเลิกได้',
+    confirmText: 'ยืนยันลบ', danger: true,
+  });
+  if (!ok) return;
   loading(true);
   await api('deleteCustomer', { id });
   await loadCustomers();
@@ -3839,7 +3853,17 @@ async function editDoc(id) {
 }
 
 async function deleteDoc(id, num) {
-  if (!confirm('ลบเอกสาร "' + num + '" ?\nการลบไม่สามารถยกเลิกได้')) return;
+  const d = docState.list.find(x => String(x.id) === String(id));
+  const isBilledTax = d && String(d.doc_type) === 'taxinvoice' && d.billed_in;
+  const ok = await confirmModal({
+    title: '🗑 ลบเอกสาร',
+    message: isBilledTax
+      ? 'ใบกำกับภาษี "' + num + '" ถูกวางบิลไปแล้ว\nการลบจะกระทบใบวางบิลที่อ้างอิงอยู่ และยกเลิกไม่ได้\nยืนยันโดยพิมพ์เลขที่เอกสารด้านล่าง'
+      : 'ต้องการลบเอกสาร "' + num + '" ?\nการลบไม่สามารถยกเลิกได้',
+    confirmText: 'ยืนยันลบ', danger: true,
+    requireText: isBilledTax ? num : '',
+  });
+  if (!ok) return;
   loading(true);
   await api('deleteDocument', { id });
   await loadDocList(docState.type);
@@ -4286,6 +4310,47 @@ function displayToIso(str) {
 
 function statusLabel(s) {
   return { draft:'Draft', sent:'ส่งแล้ว', approved:'อนุมัติ', rejected:'ปฏิเสธ' }[s] || s;
+}
+
+// Themed confirmation dialog (replaces window.confirm). Returns Promise<boolean>.
+// opts: { title, message, confirmText, cancelText, danger, requireText }
+// If requireText is given, the confirm button stays disabled until the user
+// types that exact text — used for high-risk deletes (e.g. a billed tax invoice).
+function confirmModal(opts) {
+  return new Promise(resolve => {
+    const o    = opts || {};
+    const need = o.requireText ? String(o.requireText) : '';
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    wrap.innerHTML =
+      '<div class="modal" style="width:440px;max-width:94vw">'
+      + '<h2 style="margin-bottom:12px">' + escapeHtml(o.title || 'ยืนยัน') + '</h2>'
+      + '<div style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-line">' + escapeHtml(o.message || '') + '</div>'
+      + (need
+          ? '<div class="field" style="margin-top:14px"><label>พิมพ์ "<strong>' + escapeHtml(need) + '</strong>" เพื่อยืนยันการลบ</label>'
+            + '<input id="cm-input" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:15px"></div>'
+          : '')
+      + '<div class="modal-actions">'
+      +   '<button class="btn btn-secondary" id="cm-cancel">' + escapeHtml(o.cancelText || 'ยกเลิก') + '</button>'
+      +   '<button class="btn ' + (o.danger ? 'btn-danger' : 'btn-primary') + '" id="cm-ok"' + (need ? ' disabled' : '') + '>' + escapeHtml(o.confirmText || 'ยืนยัน') + '</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(wrap);
+
+    const done  = val => { wrap.remove(); resolve(val); };
+    const okBtn = wrap.querySelector('#cm-ok');
+    wrap.querySelector('#cm-cancel').onclick = () => done(false);
+    okBtn.onclick = () => done(true);
+    wrap.addEventListener('click', e => { if (e.target === wrap) done(false); });
+    if (need) {
+      const inp = wrap.querySelector('#cm-input');
+      inp.oninput  = () => { okBtn.disabled = inp.value.trim() !== need; };
+      inp.onkeydown = e => { if (e.key === 'Enter' && !okBtn.disabled) done(true); };
+      setTimeout(() => inp.focus(), 50);
+    } else {
+      setTimeout(() => okBtn.focus(), 50);
+    }
+  });
 }
 
 function toast(msg, type = 'success') {
