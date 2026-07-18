@@ -1322,11 +1322,11 @@ tr:hover td { background: var(--accent-lt); }
     <span class="preview-title">ตัวอย่างก่อนพิมพ์</span>
     <div class="preview-actions">
       <button class="btn btn-secondary btn-sm" onclick="showPage('form', null)">← แก้ไข</button>
+      <button class="btn btn-sm" style="background:#2D7A56;color:#fff" title="ทำเครื่องหมายว่าลูกค้ายอมรับใบเสนอราคานี้" onclick="acceptQuotation(previewedQtId)">✔ ลูกค้ายอมรับ</button>
       <select id="qt-convert-type" onchange="convertQtTo(this.value); this.value='';" style="padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-family:inherit;font-size:13px;background:var(--surface);cursor:pointer">
         <option value="">➡️ สร้างเอกสารจากใบนี้...</option>
-        <option value="invoice">→ ใบแจ้งหนี้</option>
-        <option value="taxinvoice">→ ใบกำกับภาษี</option>
-        <option value="billing">→ ใบวางบิล</option>
+        <option value="invoice">→ ใบแจ้งหนี้ (ต้องยอมรับก่อน)</option>
+        <option value="taxinvoice">→ ใบกำกับภาษี (ต้องยอมรับก่อน)</option>
         <option value="receipt">→ ใบเสร็จรับเงิน</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="printDoc()">🖨 พิมพ์ / บันทึก PDF</button>
@@ -1964,7 +1964,13 @@ function renderTable(rows) {
       <td class="mono" style="text-align:right">${fmtNum(q.total)}</td>
       <td><span class="badge badge-${q.status || 'draft'}">${statusLabel(q.status)}</span></td>
       <td>
-        <div style="display:flex;gap:4px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+          ${q.status !== 'approved'
+            ? `<button class="btn btn-sm" style="background:#2D7A56;color:#fff" title="ทำเครื่องหมายว่าลูกค้ายอมรับใบเสนอราคานี้" onclick="acceptQuotation('${q.id}','${escapeHtml(q.qt_number)}')">✔ ลูกค้ายอมรับ</button>`
+            : `<span style="display:inline-flex;gap:4px">
+                 <button class="btn btn-secondary btn-sm" title="สร้างใบแจ้งหนี้จากใบนี้" onclick="createDocFromQuotation('${q.id}','invoice')">→ ใบแจ้งหนี้</button>
+                 <button class="btn btn-secondary btn-sm" title="สร้างใบกำกับภาษีจากใบนี้" onclick="createDocFromQuotation('${q.id}','taxinvoice')">→ ใบกำกับ</button>
+               </span>`}
           <button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editQuotation('${q.id}')">✏️</button>
           <button class="btn btn-secondary btn-sm btn-icon" title="ดูตัวอย่าง" onclick="previewQuotation('${q.id}')">👁</button>
           <button class="btn btn-secondary btn-sm btn-icon" title="Copy เป็นใบใหม่" onclick="copyQuotation('${q.id}')">📋</button>
@@ -3530,6 +3536,19 @@ function convertQtTo(type) {
   if (type) createDocFromQuotation(previewedQtId, type);
 }
 
+// Mark a quotation as accepted by the customer (status → approved). Only then
+// can it be turned into an invoice / tax invoice.
+async function acceptQuotation(id, number) {
+  if (!id) return;
+  if (!confirm('ยืนยันว่าลูกค้ายอมรับใบเสนอราคา ' + (number || '') + ' ?\nหลังยอมรับจะสร้างใบแจ้งหนี้/ใบกำกับภาษีจากใบนี้ได้')) return;
+  loading(true);
+  const res = await api('setQuotationStatus', {}, { id, status: 'approved' });
+  loading(false);
+  if (!res) return;
+  toast('✔ บันทึกว่าลูกค้ายอมรับแล้ว — สร้างใบแจ้งหนี้/ใบกำกับภาษีได้เลย');
+  await loadQuotations();
+}
+
 // Build a new billing document prefilled from a quotation (customer + items)
 async function createDocFromQuotation(qtId, type) {
   if (!qtId) { toast('กรุณาบันทึกใบเสนอราคาก่อน', 'error'); return; }
@@ -3537,6 +3556,11 @@ async function createDocFromQuotation(qtId, type) {
   const qt = await api('getQuotation', { id: qtId });
   loading(false);
   if (!qt) return;
+  // Invoice / tax invoice may only be created from an accepted quotation
+  if ((type === 'invoice' || type === 'taxinvoice') && qt.status !== 'approved') {
+    toast('กรุณากด "ลูกค้ายอมรับ" ใบเสนอราคาก่อน จึงจะสร้าง' + DOC_TYPES[type].th + 'ได้', 'error');
+    return;
+  }
   docState.type = type;
   docState.editingId = null;
   showPage('doc', null);
@@ -3607,7 +3631,10 @@ function renderDocList() {
     + '<select id="doc-filter-status" onchange="renderDocRows()" style="' + selStyle + '">'
     +   '<option value="">สถานะทั้งหมด</option><option value="draft">Draft</option><option value="sent">ส่งแล้ว</option><option value="approved">อนุมัติ/ชำระแล้ว</option><option value="rejected">ยกเลิก</option>'
     + '</select>'
-    + '<button class="btn btn-primary" onclick="newDoc()">➕ สร้าง' + cfg.th + '</button>'
+    + (docState.type === 'billing'
+        ? '<button class="btn btn-primary" onclick="openBillingBuilder()">📋 สร้างจากใบกำกับภาษี</button>'
+          + '<button class="btn btn-secondary" onclick="newDoc()">➕ สร้างเปล่า</button>'
+        : '<button class="btn btn-primary" onclick="newDoc()">➕ สร้าง' + cfg.th + '</button>')
     + '</div>'
     + '<div class="card card-scroll"><table><thead><tr>'
     + '<th>เลขที่</th><th>วันที่</th><th>' + cfg.partyTh + '</th><th style="text-align:right">มูลค่า</th><th>สถานะ</th><th>จัดการ</th>'
@@ -3641,6 +3668,119 @@ function renderDocRows() {
       + '<button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
     + '</div></td>'
     + '</tr>').join('');
+}
+
+// ── BILLING NOTE BUILDER (select tax invoices → one billing note) ─────────
+let billingPool = [];   // unbilled tax invoices available to place on a billing note
+
+async function openBillingBuilder() {
+  loading(true);
+  const tax = await api('getDocuments', { type: 'taxinvoice' }) || [];
+  loading(false);
+  // Only tax invoices not already placed on a billing note
+  billingPool = tax.filter(d => !d.billed_in);
+  if (!billingPool.length) {
+    toast('ไม่มีใบกำกับภาษีที่ยังไม่ได้วางบิล', 'error');
+    return;
+  }
+  // Distinct customers among the unbilled tax invoices
+  const custs = [...new Set(billingPool.map(d => d.customer_name_th || '(ไม่ระบุชื่อ)'))].sort();
+  const custOpts = custs.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop';
+  wrap.id = 'billing-builder';
+  wrap.innerHTML =
+    '<div class="modal" style="width:640px;max-width:96vw">'
+    + '<h2>📋 สร้างใบวางบิลจากใบกำกับภาษี</h2>'
+    + '<div class="field" style="margin-bottom:12px"><label>ลูกค้า</label>'
+    +   '<select id="bb-cust" onchange="renderBillingPool()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">' + custOpts + '</select>'
+    + '</div>'
+    + '<div style="font-size:13px;color:var(--text3);margin-bottom:6px">เลือกใบกำกับภาษีที่ต้องการวางบิล:</div>'
+    + '<div id="bb-list" style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:15px">'
+    +   '<span style="color:var(--text3)">เลือก <strong id="bb-count">0</strong> ใบ</span>'
+    +   '<span>ยอดรวม: <strong id="bb-total" class="mono" style="color:var(--accent)">0.00</strong> บาท</span>'
+    + '</div>'
+    + '<div class="modal-actions">'
+    +   '<button class="btn btn-secondary" onclick="closeBillingBuilder()">ยกเลิก</button>'
+    +   '<button class="btn btn-primary" onclick="submitBillingNote()">สร้างใบวางบิล</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  renderBillingPool();
+}
+
+function closeBillingBuilder() {
+  document.getElementById('billing-builder')?.remove();
+}
+
+function renderBillingPool() {
+  const cust = document.getElementById('bb-cust')?.value || '';
+  const rows = billingPool.filter(d => (d.customer_name_th || '(ไม่ระบุชื่อ)') === cust);
+  const box = document.getElementById('bb-list');
+  if (!box) return;
+  box.innerHTML = rows.map(d =>
+    '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer">'
+    + '<input type="checkbox" class="bb-chk" value="' + d.id + '" data-amt="' + (parseFloat(d.total)||0) + '" onchange="billingCalc()">'
+    + '<span style="flex:1"><span class="mono" style="font-weight:600">' + escapeHtml(d.doc_number || '') + '</span>'
+    +   '<span style="color:var(--text3);font-size:12px;margin-left:8px">' + formatDate(d.doc_date) + '</span></span>'
+    + '<span class="mono">' + fmtNum(d.total) + '</span>'
+    + '</label>').join('') || '<div style="padding:16px;text-align:center;color:var(--text3)">ไม่มีใบกำกับภาษีของลูกค้ารายนี้</div>';
+  billingCalc();
+}
+
+function billingCalc() {
+  const chks = [...document.querySelectorAll('.bb-chk:checked')];
+  const total = chks.reduce((s, c) => s + (parseFloat(c.dataset.amt) || 0), 0);
+  document.getElementById('bb-count').textContent = chks.length;
+  document.getElementById('bb-total').textContent = fmtNum(total);
+}
+
+async function submitBillingNote() {
+  const chks = [...document.querySelectorAll('.bb-chk:checked')];
+  if (!chks.length) { toast('กรุณาเลือกใบกำกับภาษีอย่างน้อย 1 ใบ', 'error'); return; }
+  const ids = chks.map(c => c.value);
+  const members = billingPool.filter(d => ids.includes(d.id));
+  const first = members[0];
+  const sum = members.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+
+  const body = {
+    doc_type: 'billing',
+    doc_date: isoToDisplay(new Date()),
+    due_date: addDays(7),
+    ref_no: members.map(d => d.doc_number).join(', '),
+    customer_name_th: first.customer_name_th || '',
+    customer_tax_id: first.customer_tax_id || '',
+    customer_address_th: first.customer_address_th || '',
+    customer_phone: first.customer_phone || '',
+    customer_email: first.customer_email || '',
+    subject: 'วางบิลใบกำกับภาษี ' + members.length + ' ฉบับ',
+    payment_terms: first.payment_terms || '',
+    // One line per tax invoice
+    items: members.map(d => ({
+      description: 'ใบกำกับภาษี ' + (d.doc_number || '') + ' ลว. ' + formatDate(d.doc_date),
+      qty: 1, unit: '', unit_price: (parseFloat(d.total) || 0).toFixed(2),
+      discount_pct: 0, amount: (parseFloat(d.total) || 0).toFixed(2)
+    })),
+    subtotal: sum.toFixed(2),
+    discount: '0.00',
+    after_discount: sum.toFixed(2),
+    vat_type: 'none',
+    vat_amount: '0.00',
+    total: sum.toFixed(2),
+    status: 'draft',
+    member_ids: ids,
+  };
+
+  loading(true);
+  const res = await api('saveBillingNote', {}, body);
+  loading(false);
+  if (!res) return;
+  closeBillingBuilder();
+  toast('✅ สร้างใบวางบิล ' + (res.doc_number || '') + ' จากใบกำกับภาษี ' + res.members + ' ฉบับ');
+  await loadDocList('billing');
+  renderDocList();
 }
 
 function newDoc() {
