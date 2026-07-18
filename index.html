@@ -420,6 +420,7 @@ tr:hover td { background: var(--accent-lt); }
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .badge-draft   { background: #F0F0EC; color: #6B6860; }
 .badge-sent    { background: var(--amber-lt); color: var(--amber); }
@@ -1958,19 +1959,21 @@ function renderTable(rows) {
         <span class="mono">${escapeHtml(q.qt_number)}</span>
         ${parseInt(q.revision||0)>0 ? `<span style="font-size:11px;background:#FFF3CD;color:#856404;border:1px solid #F9A825;padding:1px 6px;border-radius:10px;margin-left:4px">Rev.${escapeHtml(q.revision)}</span>` : ''}
       </td>
-      <td>${formatDate(q.qt_date)}</td>
-      <td>${escapeHtml(q.customer_name_th)}</td>
-      <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(q.subject_th)}</td>
-      <td class="mono" style="text-align:right">${fmtNum(q.total)}</td>
-      <td><span class="badge badge-${q.status || 'draft'}">${statusLabel(q.status)}</span></td>
+      <td style="white-space:nowrap">${formatDate(q.qt_date)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(q.customer_name_th)}">${escapeHtml(q.customer_name_th)}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(q.subject_th)}</td>
+      <td class="mono" style="text-align:right;white-space:nowrap">${fmtNum(q.total)}</td>
+      <td style="white-space:nowrap"><span class="badge badge-${q.status || 'draft'}">${statusLabel(q.status)}</span></td>
       <td>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">
           ${q.status !== 'approved'
-            ? `<button class="btn btn-sm" style="background:#2D7A56;color:#fff" title="ทำเครื่องหมายว่าลูกค้ายอมรับใบเสนอราคานี้" onclick="acceptQuotation('${q.id}','${escapeHtml(q.qt_number)}')">✔ ลูกค้ายอมรับ</button>`
-            : `<span style="display:inline-flex;gap:4px">
-                 <button class="btn btn-secondary btn-sm" title="สร้างใบแจ้งหนี้จากใบนี้" onclick="createDocFromQuotation('${q.id}','invoice')">→ ใบแจ้งหนี้</button>
-                 <button class="btn btn-secondary btn-sm" title="สร้างใบกำกับภาษีจากใบนี้" onclick="createDocFromQuotation('${q.id}','taxinvoice')">→ ใบกำกับ</button>
-               </span>`}
+            ? `<button class="btn btn-sm" style="background:#2D7A56;color:#fff;white-space:nowrap" title="ทำเครื่องหมายว่าลูกค้ายอมรับใบเสนอราคานี้" onclick="acceptQuotation('${q.id}','${escapeHtml(q.qt_number)}')">✔ ยอมรับ</button>`
+            : `<select title="สร้างเอกสารจากใบนี้" onchange="if(this.value){createDocFromQuotation('${q.id}',this.value);this.value='';}" style="padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:12px;background:var(--surface);cursor:pointer;white-space:nowrap">
+                 <option value="">➕ สร้างเอกสาร</option>
+                 <option value="invoice">→ ใบแจ้งหนี้</option>
+                 <option value="taxinvoice">→ ใบกำกับภาษี</option>
+                 <option value="receipt">→ ใบเสร็จรับเงิน</option>
+               </select>`}
           <button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editQuotation('${q.id}')">✏️</button>
           <button class="btn btn-secondary btn-sm btn-icon" title="ดูตัวอย่าง" onclick="previewQuotation('${q.id}')">👁</button>
           <button class="btn btn-secondary btn-sm btn-icon" title="Copy เป็นใบใหม่" onclick="copyQuotation('${q.id}')">📋</button>
@@ -3657,12 +3660,12 @@ function renderDocRows() {
   }
   tb.innerHTML = rows.map(d =>
     '<tr>'
-    + '<td><span class="mono">' + escapeHtml(d.doc_number) + '</span></td>'
-    + '<td>' + formatDate(d.doc_date) + '</td>'
-    + '<td>' + escapeHtml(d.customer_name_th) + '</td>'
-    + '<td class="mono" style="text-align:right">' + fmtNum(d.total) + '</td>'
-    + '<td><span class="badge badge-' + (d.status||'draft') + '">' + statusLabel(d.status) + '</span></td>'
-    + '<td><div style="display:flex;gap:4px">'
+    + '<td style="white-space:nowrap"><span class="mono">' + escapeHtml(d.doc_number) + '</span></td>'
+    + '<td style="white-space:nowrap">' + formatDate(d.doc_date) + '</td>'
+    + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(d.customer_name_th) + '">' + escapeHtml(d.customer_name_th) + '</td>'
+    + '<td class="mono" style="text-align:right;white-space:nowrap">' + fmtNum(d.total) + '</td>'
+    + '<td style="white-space:nowrap"><span class="badge badge-' + (d.status||'draft') + '">' + statusLabel(d.status) + '</span></td>'
+    + '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">'
       + '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
       + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
       + '<button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
