@@ -1128,14 +1128,11 @@ tr:hover td { background: var(--accent-lt); }
           </div>
         </div>
         <div class="grid-2" style="margin-top:14px">
-          <div class="field">
-            <label>โครงการ (ภาษาไทย) <span class="req">*</span></label>
+          <div class="field col-span-2">
+            <label>โครงการ <span class="req">*</span></label>
             <input type="text" id="subject_th" placeholder="เช่น เสนอราคาพัฒนาระบบซอฟต์แวร์">
           </div>
-          <div class="field">
-            <label>Subject (English)</label>
-            <input type="text" id="subject_en" placeholder="e.g. Software Development Proposal">
-          </div>
+          <input type="hidden" id="subject_en">
         </div>
       </div>
 
@@ -1148,22 +1145,16 @@ tr:hover td { background: var(--accent-lt); }
           </select>
         </div>
         <div class="grid-2">
-          <div class="field">
-            <label>ชื่อลูกค้า (ภาษาไทย) <span class="req">*</span></label>
+          <div class="field col-span-2">
+            <label>ชื่อลูกค้า <span class="req">*</span></label>
             <input type="text" id="customer_name_th">
           </div>
-          <div class="field">
-            <label>Customer Name (English)</label>
-            <input type="text" id="customer_name_en">
-          </div>
+          <input type="hidden" id="customer_name_en">
           <div class="field col-span-2">
-            <label>ที่อยู่ (ภาษาไทย)</label>
+            <label>ที่อยู่</label>
             <textarea id="customer_address_th" rows="2"></textarea>
           </div>
-          <div class="field col-span-2">
-            <label>Address (English)</label>
-            <textarea id="customer_address_en" rows="2"></textarea>
-          </div>
+          <textarea id="customer_address_en" style="display:none"></textarea>
           <div class="field">
             <label>เลขผู้เสียภาษี / Tax ID</label>
             <input type="text" id="customer_tax_id" placeholder="0000000000000">
@@ -1204,22 +1195,16 @@ tr:hover td { background: var(--accent-lt); }
       <div class="section">
         <div class="section-title">เงื่อนไขการชำระเงิน & หมายเหตุ</div>
         <div class="grid-2">
-          <div class="field">
-            <label>เงื่อนไขการชำระเงิน (ไทย)</label>
+          <div class="field col-span-2">
+            <label>เงื่อนไขการชำระเงิน</label>
             <textarea id="payment_terms_th" rows="3"></textarea>
           </div>
-          <div class="field">
-            <label>Payment Terms (English)</label>
-            <textarea id="payment_terms_en" rows="3"></textarea>
-          </div>
-          <div class="field">
-            <label>หมายเหตุ (ภาษาไทย)</label>
+          <textarea id="payment_terms_en" style="display:none"></textarea>
+          <div class="field col-span-2">
+            <label>หมายเหตุ</label>
             <textarea id="note_th" rows="6" placeholder="หมายเหตุเพิ่มเติม... (กด Enter เพื่อขึ้นบรรทัดใหม่)"></textarea>
           </div>
-          <div class="field">
-            <label>Note (English)</label>
-            <textarea id="note_en" rows="6" placeholder="Additional notes..."></textarea>
-          </div>
+          <textarea id="note_en" style="display:none"></textarea>
         </div>
       </div>
 
@@ -2140,9 +2125,9 @@ function fillCustomer() {
   const c = CUSTOMERS[parseInt(idx)];
   if (!c) return;
   document.getElementById('customer_name_th').value    = c.name_th || '';
-  document.getElementById('customer_name_en').value    = c.name_en || '';
+  document.getElementById('customer_name_en').value    = ''; // system is Thai-only
   document.getElementById('customer_address_th').value = c.address_th || '';
-  document.getElementById('customer_address_en').value = c.address_en || '';
+  document.getElementById('customer_address_en').value = '';
   document.getElementById('customer_tax_id').value     = c.tax_id || '';
   // branch
   const bType = c.branch_type || 'หน่วยงานใหญ่';
@@ -2256,8 +2241,8 @@ function addAnnexSection(type = 'rich', data = {}) {
     <div class="annex-section-header">
       <span class="drag-handle">⠿</span>
       <span class="section-num">${annexSeq}</span>
-      <input type="text" placeholder="ชื่อ Section / Section Title" value="${data.section_title_th||data.section_title_en||''}">
-      <input type="text" placeholder="Title (EN)" value="${data.section_title_en||''}" style="font-size:13px;color:var(--text2)">
+      <input type="text" placeholder="ชื่อหัวข้อ" value="${data.section_title_th||data.section_title_en||''}">
+      <input type="hidden" value="${data.section_title_en||''}">
       <button class="btn btn-danger btn-sm btn-icon" onclick="removeAnnex('${id}')" title="ลบ Section">✕</button>
     </div>
     <div class="annex-section-body">
@@ -2266,16 +2251,11 @@ function addAnnexSection(type = 'rich', data = {}) {
         <button class="${type==='structured'?'active':''}" onclick="setAnnexType('${id}','structured')">🗂 Structured</button>
       </div>
       <div class="annex-rich" style="display:${type==='rich'?'block':'none'}">
-        <div class="grid-2">
-          <div class="field">
-            <label>เนื้อหา (ภาษาไทย)</label>
-            <textarea rows="6" placeholder="รายละเอียดภาษาไทย...">${data.section_content_th||''}</textarea>
-          </div>
-          <div class="field">
-            <label>Content (English)</label>
-            <textarea rows="6" placeholder="English details...">${data.section_content_en||''}</textarea>
-          </div>
+        <div class="field">
+          <label>เนื้อหา</label>
+          <textarea rows="6" placeholder="รายละเอียด...">${data.section_content_th||''}</textarea>
         </div>
+        <textarea style="display:none">${data.section_content_en||''}</textarea>
       </div>
       <div class="annex-structured" style="display:${type==='structured'?'block':'none'}">
         <div id="${id}-rows"></div>
@@ -2316,15 +2296,15 @@ function addStructRow(annexId, data = {}) {
   div.id = rowId;
   div.innerHTML = `
     <span class="struct-label">หัวข้อ</span>
-    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px">
-      <input type="text" placeholder="หัวข้อ (ไทย)" value="${data.key_th||''}">
-      <input type="text" placeholder="Key (EN)" value="${data.key_en||''}">
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+      <input type="text" placeholder="หัวข้อ" value="${data.key_th||''}">
+      <input type="hidden" value="${data.key_en||''}">
       <button class="btn btn-danger btn-sm btn-icon" onclick="document.getElementById('${rowId}').remove()">✕</button>
     </div>
     <span class="struct-label">เนื้อหา</span>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <textarea rows="2" placeholder="รายละเอียด (ไทย)">${data.val_th||''}</textarea>
-      <textarea rows="2" placeholder="Details (EN)">${data.val_en||''}</textarea>
+    <div>
+      <textarea rows="2" placeholder="รายละเอียด" style="width:100%">${data.val_th||''}</textarea>
+      <textarea style="display:none">${data.val_en||''}</textarea>
     </div>
   `;
   container.appendChild(div);
@@ -2522,9 +2502,9 @@ function renderPreview(qt) {
   const items = (qt.items || []).map((item, i) => `
     <tr>
       <td style="text-align:center">${i+1}</td>
-      <td>${item.description_th||''}<br><span style="font-size:11px;color:#666">${item.description_en||''}</span></td>
+      <td>${item.description_th||''}</td>
       <td style="text-align:center">${item.qty}</td>
-      <td style="text-align:center">${item.unit_th||item.unit_en||''}</td>
+      <td style="text-align:center">${item.unit_th||''}</td>
       <td style="text-align:right">${fmtNum(item.unit_price)}</td>
       <td style="text-align:right">${fmtNum(item.amount)}</td>
     </tr>
@@ -2533,20 +2513,14 @@ function renderPreview(qt) {
   const annexHtml = (qt.annex || []).map((sec, idx) => {
     let content = '';
     if (sec.annex_type === 'rich') {
-      content = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div style="white-space:pre-wrap;font-size:12px;line-height:1.7">${sec.section_content_th||''}</div>
-          <div style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:#555">${sec.section_content_en||''}</div>
-        </div>`;
+      content = `<div style="white-space:pre-wrap;font-size:12px;line-height:1.7">${sec.section_content_th||''}</div>`;
     } else {
       try {
         const rows = JSON.parse(sec.rich_content || '[]');
         content = rows.map(r => `
           <tr>
-            <td style="font-weight:600;padding:6px 8px;width:30%">${r.key_th||''}</td>
-            <td style="padding:6px 8px;width:20%;color:#555;font-size:11px">${r.key_en||''}</td>
+            <td style="font-weight:600;padding:6px 8px;width:32%;vertical-align:top">${r.key_th||''}</td>
             <td style="padding:6px 8px">${r.val_th||''}</td>
-            <td style="padding:6px 8px;color:#555;font-size:11px">${r.val_en||''}</td>
           </tr>`).join('');
         content = `<table style="width:100%;border-collapse:collapse;font-size:12px">${content}</table>`;
       } catch(e) { content = sec.rich_content || ''; }
@@ -2554,7 +2528,7 @@ function renderPreview(qt) {
     return `
       <div style="margin-bottom:20px">
         <div style="font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd">
-          ${idx+1}. ${sec.section_title_th||''} ${sec.section_title_en ? '<span style="font-size:11px;color:#888;font-weight:400">/ '+sec.section_title_en+'</span>' : ''}
+          ${idx+1}. ${sec.section_title_th||''}
         </div>
         ${content}
       </div>`;
@@ -2644,7 +2618,6 @@ function renderPreview(qt) {
     <!-- SUBJECT -->
     <div style="margin-bottom:10px;font-size:13px">
       <span style="font-weight:700">โครงการ: </span>${qt.subject_th||''}
-      ${qt.subject_en?`<span style="color:#888;font-size:11px"> / ${qt.subject_en}</span>`:''}
     </div>
 
     <!-- ITEMS TABLE -->
