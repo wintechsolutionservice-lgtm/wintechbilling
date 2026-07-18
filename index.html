@@ -426,6 +426,7 @@ tr:hover td { background: var(--accent-lt); }
 .badge-sent    { background: var(--amber-lt); color: var(--amber); }
 .badge-approved{ background: #FFF8E1; color: #E65100; border: 1px solid #FFD600; }
 .badge-rejected{ background: var(--red-lt); color: var(--red); }
+.badge-voided  { background: #37352F; color: #fff; }
 
 /* ── Form Page ────────────────────────────────────── */
 .form-page { padding: 16px; max-width: 1000px; margin: 0 auto; }
@@ -3373,7 +3374,8 @@ async function showOverview(el) {
 async function renderOverview() {
   const root = document.getElementById('overview-root');
   root.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">กำลังโหลดสรุปข้อมูล...</div>';
-  const docs = await api('getDocuments') || [];   // all document types
+  // Voided documents keep their number but must not count toward any money total.
+  const docs = (await api('getDocuments') || []).filter(d => d.status !== 'voided');
   const num  = v => parseFloat(v) || 0;
   const monthOf = iso => String(iso || '').slice(0, 7);
 
@@ -3706,7 +3708,8 @@ function renderDocList() {
   const cfg = DOC_TYPES[docState.type];
   const list = docState.list;
   const num = v => parseFloat(v) || 0;
-  const totalVal = list.reduce((s, d) => s + num(d.total), 0);
+  // Voided documents keep their number but are excluded from money totals.
+  const totalVal = list.reduce((s, d) => s + (d.status === 'voided' ? 0 : num(d.total)), 0);
   const cnt = s => list.filter(d => (d.status || 'draft') === s).length;
   const selStyle = 'padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;background:var(--surface);outline:none';
   document.getElementById('doc-root').innerHTML =
@@ -3722,7 +3725,7 @@ function renderDocList() {
     + '<div class="toolbar">'
     + '<div class="search-box"><input type="text" id="doc-search" placeholder="ค้นหาเลขที่, ' + cfg.partyTh + '..." oninput="renderDocRows()"></div>'
     + '<select id="doc-filter-status" onchange="renderDocRows()" style="' + selStyle + '">'
-    +   '<option value="">สถานะทั้งหมด</option><option value="draft">Draft</option><option value="sent">ส่งแล้ว</option><option value="approved">อนุมัติ/ชำระแล้ว</option><option value="rejected">ยกเลิก</option>'
+    +   '<option value="">สถานะทั้งหมด</option><option value="draft">Draft</option><option value="sent">ส่งแล้ว</option><option value="approved">อนุมัติ/ชำระแล้ว</option><option value="voided">ยกเลิก</option><option value="rejected">ปฏิเสธ</option>'
     + '</select>'
     + (docState.type === 'billing'
         ? '<button class="btn btn-primary" onclick="openBillingBuilder()">📋 สร้างจากใบกำกับภาษี</button>'
@@ -3748,19 +3751,28 @@ function renderDocRows() {
     tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">ยังไม่มีเอกสาร</td></tr>';
     return;
   }
-  tb.innerHTML = rows.map(d =>
-    '<tr>'
-    + '<td style="white-space:nowrap"><span class="mono">' + escapeHtml(d.doc_number) + '</span></td>'
+  tb.innerHTML = rows.map(d => {
+    const st = d.status || 'draft';
+    const voided = st === 'voided';
+    // Issued documents (anything past draft) are cancelled by voiding — which
+    // keeps the number — not deleted. Only a never-issued draft can be deleted.
+    const actions = voided
+      ? '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
+      : '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
+        + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
+        + '<button class="btn btn-secondary btn-sm btn-icon" title="ยกเลิก (เก็บเลขไว้)" onclick="voidDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🚫</button>'
+        + (st === 'draft'
+            ? '<button class="btn btn-danger btn-sm btn-icon" title="ลบ (ร่างที่ยังไม่ออก)" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
+            : '');
+    return '<tr' + (voided ? ' style="opacity:.55"' : '') + '>'
+    + '<td style="white-space:nowrap"><span class="mono"' + (voided ? ' style="text-decoration:line-through"' : '') + '>' + escapeHtml(d.doc_number) + '</span></td>'
     + '<td style="white-space:nowrap">' + formatDate(d.doc_date) + '</td>'
     + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(d.customer_name_th) + '">' + escapeHtml(d.customer_name_th) + '</td>'
     + '<td class="mono" style="text-align:right;white-space:nowrap">' + fmtNum(d.total) + '</td>'
-    + '<td style="white-space:nowrap"><span class="badge badge-' + (d.status||'draft') + '">' + statusLabel(d.status) + '</span></td>'
-    + '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">'
-      + '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
-      + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
-      + '<button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
-    + '</div></td>'
-    + '</tr>').join('');
+    + '<td style="white-space:nowrap"><span class="badge badge-' + st + '">' + statusLabel(st) + '</span></td>'
+    + '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">' + actions + '</div></td>'
+    + '</tr>';
+  }).join('');
 }
 
 // ── BILLING NOTE BUILDER (select tax invoices → one billing note) ─────────
@@ -3771,7 +3783,7 @@ async function openBillingBuilder() {
   const tax = await api('getDocuments', { type: 'taxinvoice' }) || [];
   loading(false);
   // Only tax invoices not already placed on a billing note
-  billingPool = tax.filter(d => !d.billed_in);
+  billingPool = tax.filter(d => !d.billed_in && d.status !== 'voided');
   if (!billingPool.length) {
     toast('ไม่มีใบกำกับภาษีที่ยังไม่ได้วางบิล', 'error');
     return;
@@ -3887,6 +3899,7 @@ async function editDoc(id) {
   const d = await api('getDocument', { id });
   loading(false);
   if (!d) return;
+  if (String(d.status) === 'voided') { toast('เอกสารถูกยกเลิกแล้ว แก้ไขไม่ได้', 'error'); return; }
   docState.editingId = d.id;
   buildDocForm({
     doc_number: d.doc_number, doc_date: formatDate(d.doc_date), due_date: formatDate(d.due_date),
@@ -3915,6 +3928,23 @@ async function deleteDoc(id, num) {
   loading(false);
   renderDocList();
   toast('🗑 ลบเอกสารเรียบร้อย');
+}
+
+// Void (cancel) a document without deleting it — keeps the running number so
+// the sequence stays gap-free (required for issued tax invoices).
+async function voidDoc(id, num) {
+  const reason = await promptModal({
+    title: '🚫 ยกเลิกเอกสาร',
+    message: 'ยกเลิกเอกสาร "' + num + '" ?\nเลขที่จะถูกเก็บไว้ (ไม่สร้างช่องว่าง) และตัดออกจากยอดรวม แต่จะแก้ไขไม่ได้อีก',
+    placeholder: 'เหตุผลที่ยกเลิก (ไม่บังคับ)',
+    confirmText: 'ยืนยันยกเลิก', danger: true,
+  });
+  if (reason === null) return; // user cancelled the dialog
+  loading(true);
+  const res = await api('voidDocument', {}, { id, reason });
+  await loadDocList(docState.type);
+  loading(false);
+  if (res) { renderDocList(); toast('🚫 ยกเลิกเอกสารเรียบร้อย'); }
 }
 
 async function backToDocList() {
@@ -4163,7 +4193,9 @@ async function previewDoc(id) {
 function previewDocData(d) {
   document.getElementById('doc-root').innerHTML =
     '<div class="form-header" style="border:none;margin-bottom:14px"><div class="actions" style="margin-left:auto">'
-    + '<button class="btn btn-secondary" onclick="' + (docState.editingId ? "editDoc('" + docState.editingId + "')" : 'backToDocList()') + '">← แก้ไข</button>'
+    + ((docState.editingId && d.status !== 'voided')
+        ? '<button class="btn btn-secondary" onclick="editDoc(\'' + docState.editingId + '\')">← แก้ไข</button>'
+        : '<button class="btn btn-secondary" onclick="backToDocList()">← กลับ</button>')
     + '<button class="btn btn-primary" onclick="docPrint()">🖨 พิมพ์ / PDF</button>'
     + '</div></div>'
     + '<div class="preview-frame"><div class="print-page" id="doc-print-page">' + docInnerHTML(d) + '</div></div>';
@@ -4187,6 +4219,11 @@ function docInnerHTML(d) {
   const hasVat = (d.vat_type && d.vat_type !== 'none');
   const disc = parseFloat(d.discount) || 0;
   return ''
+    + (d.status === 'voided'
+        ? '<div style="border:2px solid #37352F;color:#37352F;background:#f4f3f0;text-align:center;font-weight:800;letter-spacing:.2em;padding:8px;margin-bottom:14px;border-radius:6px">ยกเลิก / VOID'
+          + (d.void_reason ? '<div style="font-size:11px;font-weight:500;letter-spacing:normal;margin-top:3px">เหตุผล: ' + escapeHtml(d.void_reason) + '</div>' : '')
+          + '</div>'
+        : '')
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B71C1C;padding-bottom:12px;margin-bottom:16px">'
     + '<div style="max-width:64%;display:flex;align-items:flex-start;gap:10px">'
     + (co.company_logo ? '<img src="' + co.company_logo + '" style="max-height:' + (parseInt(co.logo_height) || 56) + 'px;max-width:90px;object-fit:contain;flex-shrink:0">' : '')
@@ -4355,7 +4392,7 @@ function displayToIso(str) {
 }
 
 function statusLabel(s) {
-  return { draft:'Draft', sent:'ส่งแล้ว', approved:'อนุมัติ', rejected:'ปฏิเสธ' }[s] || s;
+  return { draft:'Draft', sent:'ส่งแล้ว', approved:'อนุมัติ', rejected:'ปฏิเสธ', voided:'ยกเลิก' }[s] || s;
 }
 
 // Themed confirmation dialog (replaces window.confirm). Returns Promise<boolean>.
@@ -4396,6 +4433,36 @@ function confirmModal(opts) {
     } else {
       setTimeout(() => okBtn.focus(), 50);
     }
+  });
+}
+
+// Themed prompt dialog. Resolves to the entered string on confirm (may be
+// empty), or null if the user cancels. opts: { title, message, placeholder,
+// confirmText, cancelText, danger }
+function promptModal(opts) {
+  return new Promise(resolve => {
+    const o = opts || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    wrap.innerHTML =
+      '<div class="modal" style="width:440px;max-width:94vw">'
+      + '<h2 style="margin-bottom:12px">' + escapeHtml(o.title || '') + '</h2>'
+      + (o.message ? '<div style="font-size:14px;color:var(--text2);line-height:1.7;white-space:pre-line">' + escapeHtml(o.message) + '</div>' : '')
+      + '<div class="field" style="margin-top:14px">'
+      +   '<input id="pm-input" autocomplete="off" placeholder="' + escapeHtml(o.placeholder || '') + '" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:15px"></div>'
+      + '<div class="modal-actions">'
+      +   '<button class="btn btn-secondary" id="pm-cancel">' + escapeHtml(o.cancelText || 'ยกเลิก') + '</button>'
+      +   '<button class="btn ' + (o.danger ? 'btn-danger' : 'btn-primary') + '" id="pm-ok">' + escapeHtml(o.confirmText || 'ยืนยัน') + '</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(wrap);
+    const inp  = wrap.querySelector('#pm-input');
+    const done = val => { wrap.remove(); resolve(val); };
+    wrap.querySelector('#pm-cancel').onclick = () => done(null);
+    wrap.querySelector('#pm-ok').onclick = () => done(inp.value.trim());
+    wrap.addEventListener('click', e => { if (e.target === wrap) done(null); });
+    inp.onkeydown = e => { if (e.key === 'Enter') done(inp.value.trim()); };
+    setTimeout(() => inp.focus(), 50);
   });
 }
 
