@@ -3702,6 +3702,42 @@ async function createDocFromQuotation(qtId, type) {
   toast('📄 เตรียม' + DOC_TYPES[type].th + 'จากใบเสนอราคา ' + (qt.qt_number || '') + ' — ตรวจสอบแล้วกดบันทึก');
 }
 
+// Build a receipt prefilled from a paid document, for the amount actually
+// received (a single "รับชำระตาม …" line = paid total). Supports partial —
+// the amount is editable, so an installment/deposit receipt just needs a tweak.
+async function createReceiptFromDoc(id) {
+  loading(true);
+  const d = await api('getDocument', { id });
+  loading(false);
+  if (!d) return;
+  const pays = d.payments || [];
+  const paid = pays.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  if (!(paid > 0)) { toast('ยังไม่มีการรับชำระ — บันทึกรับชำระก่อน (💰)', 'error'); return; }
+  const lastPay = pays[pays.length - 1];
+  docState.type = 'receipt';
+  docState.editingId = null;
+  showPage('doc', null);
+  highlightDocNav('receipt');
+  buildDocForm({
+    doc_number: '',
+    doc_date: lastPay && lastPay.pay_date ? isoToDisplay(lastPay.pay_date) : isoToDisplay(new Date()),
+    ref_no: d.doc_number || '',
+    customer_name_th: d.customer_name_th,
+    customer_tax_id: d.customer_tax_id,
+    customer_address_th: d.customer_address_th,
+    customer_phone: d.customer_phone,
+    customer_email: d.customer_email,
+    vat_type: 'none',
+    items: [{
+      description: 'รับชำระเงินตาม' + (DOC_TYPES[d.doc_type] ? DOC_TYPES[d.doc_type].th : 'เอกสาร') + ' เลขที่ ' + (d.doc_number || ''),
+      qty: 1, unit: '', unit_price: paid, amount: paid,
+    }],
+    note: lastPay && lastPay.method ? 'ชำระโดย ' + lastPay.method : '',
+  });
+  closeSidebar();
+  toast('🧾 เตรียมใบเสร็จรับเงิน ' + fmtNum(paid) + ' บาท จาก ' + (d.doc_number || '') + ' — ตรวจแล้วกดบันทึก');
+}
+
 function gvv(id) { const e = document.getElementById(id); return e ? e.value : ''; }
 function setV(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
 function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return isoToDisplay(d); }
@@ -3780,22 +3816,26 @@ function renderDocRows() {
     const voided = st === 'voided';
     // Issued documents (anything past draft) are cancelled by voiding — which
     // keeps the number — not deleted. Only a never-issued draft can be deleted.
+    const paidNow = docState.payMap[d.id] || 0;
     const payBtn = PAYABLE_TYPES[d.doc_type]
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="รับชำระ" onclick="openPaymentModal(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">💰</button>'
+      : '';
+    // Receipt shortcut: only once money has actually been received.
+    const receiptBtn = (PAYABLE_TYPES[d.doc_type] && paidNow > 0)
+      ? '<button class="btn btn-secondary btn-sm btn-icon" title="ออกใบเสร็จ" onclick="createReceiptFromDoc(\'' + d.id + '\')">🧾</button>'
       : '';
     const actions = voided
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
       : '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
-        + payBtn
+        + payBtn + receiptBtn
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ยกเลิก (เก็บเลขไว้)" onclick="voidDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🚫</button>'
         + (st === 'draft'
             ? '<button class="btn btn-danger btn-sm btn-icon" title="ลบ (ร่างที่ยังไม่ออก)" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
             : '');
     // Paid/remaining hint (payable docs only, when partially paid)
-    const paid = docState.payMap[d.id] || 0;
-    const rem  = (parseFloat(d.total) || 0) - paid;
-    const payHint = (!voided && PAYABLE_TYPES[d.doc_type] && paid > 0 && rem > 0.005)
+    const rem  = (parseFloat(d.total) || 0) - paidNow;
+    const payHint = (!voided && PAYABLE_TYPES[d.doc_type] && paidNow > 0 && rem > 0.005)
       ? '<div style="font-size:11px;color:var(--amber)">ค้าง ' + fmtNum(rem) + '</div>' : '';
     return '<tr' + (voided ? ' style="opacity:.55"' : '') + '>'
     + '<td style="white-space:nowrap"><span class="mono"' + (voided ? ' style="text-decoration:line-through"' : '') + '>' + escapeHtml(d.doc_number) + '</span></td>'
