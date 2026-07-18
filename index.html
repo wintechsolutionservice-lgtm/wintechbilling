@@ -3394,11 +3394,23 @@ async function renderOverview() {
   const qCount = allQuotations.length;
   const qSum   = allQuotations.reduce((s, q) => s + num(q.total), 0);
 
-  // KPIs
+  // Payments (real cash in). Sum per document, ignoring any payment whose
+  // document was voided/deleted (not in the live docs set).
+  const docById = {};
+  docs.forEach(d => { docById[d.id] = d; });
+  const pays = await api('getPayments') || [];
+  const paidByDoc = {};
+  let received = 0;
+  pays.forEach(p => {
+    if (!docById[p.doc_id]) return;      // orphan / voided → skip
+    const amt = num(p.amount);
+    paidByDoc[p.doc_id] = (paidByDoc[p.doc_id] || 0) + amt;
+    received += amt;
+  });
+  // Outstanding = unpaid balance on receivable documents (total − paid).
   const outstanding = docs
-    .filter(d => ['invoice','taxinvoice','billing'].includes(d.doc_type) && ['draft','sent'].includes(d.status))
-    .reduce((s, d) => s + num(d.total), 0);
-  const received = byType.receipt ? byType.receipt.sum : 0;
+    .filter(d => PAYABLE_TYPES[d.doc_type])
+    .reduce((s, d) => s + Math.max(0, num(d.total) - (paidByDoc[d.id] || 0)), 0);
   const monthDocs = docs.filter(d => monthOf(d.doc_date) === ym);
   const monthCount = monthDocs.length;
   const monthSumTotal = monthDocs.reduce((s, d) => s + num(d.total), 0);
@@ -3435,8 +3447,8 @@ async function renderOverview() {
     + '<div class="page-subtitle">ภาพรวมเอกสารและยอดเงิน</div>'
     // KPI row
     + '<div class="stats-row">'
-    + kpi('ค้างชำระ', fmtNum(outstanding), 'แจ้งหนี้/กำกับภาษี/วางบิล ที่ยังไม่ชำระ (บาท)', true)
-    + kpi('รับชำระแล้ว', fmtNum(received), 'รวมใบเสร็จรับเงิน (บาท)', false, 'var(--accent2)')
+    + kpi('ค้างชำระ', fmtNum(outstanding), 'ยอดคงเหลือของแจ้งหนี้/กำกับภาษี/วางบิล (บาท)', true)
+    + kpi('รับชำระแล้ว', fmtNum(received), 'รวมเงินที่รับชำระจริง (บาท)', false, 'var(--accent2)')
     + kpi('เอกสารเดือนนี้', String(monthCount), fmtNum(monthSumTotal) + ' บาท', false, 'var(--amber)')
     + kpi('ใบเสนอราคา', String(qCount), fmtNum(qSum) + ' บาท', false)
     + '</div>'
@@ -3582,7 +3594,11 @@ const DOC_TYPES = {
   receipt:       { th:'ใบเสร็จรับเงิน',  en:'Receipt',        icon:'💵', partyTh:'ลูกค้า', partyEn:'Customer' },
   purchaseorder: { th:'ใบสั่งซื้อ',      en:'Purchase Order', icon:'🛒', partyTh:'ผู้ขาย', partyEn:'Supplier' },
 };
-const docState = { type: null, list: [], editingId: null };
+// Document types that represent money owed to us (receivables) — the ones
+// payments are recorded against and that count toward "outstanding".
+const PAYABLE_TYPES = { invoice: 1, taxinvoice: 1, billing: 1 };
+const PAY_METHODS = ['เงินสด', 'โอนเงิน', 'เช็ค', 'บัตรเครดิต', 'อื่นๆ'];
+const docState = { type: null, list: [], editingId: null, payMap: {} };
 let previewedQtId = null; // quotation currently shown in the preview page (for convert)
 
 // Highlight the sidebar link for a document type (used when jumping to the form)
@@ -3700,7 +3716,15 @@ async function showDoc(type, el) {
 
 async function loadDocList(type) {
   loading(true);
-  docState.list = await api('getDocuments', { type }) || [];
+  // Load documents + all payments together so the list can show paid/remaining.
+  const [list, pays] = await Promise.all([
+    api('getDocuments', { type }),
+    api('getPayments'),
+  ]);
+  docState.list = list || [];
+  const map = {};
+  (pays || []).forEach(p => { map[p.doc_id] = (map[p.doc_id] || 0) + (parseFloat(p.amount) || 0); });
+  docState.payMap = map;
   loading(false);
 }
 
@@ -3756,19 +3780,28 @@ function renderDocRows() {
     const voided = st === 'voided';
     // Issued documents (anything past draft) are cancelled by voiding — which
     // keeps the number — not deleted. Only a never-issued draft can be deleted.
+    const payBtn = PAYABLE_TYPES[d.doc_type]
+      ? '<button class="btn btn-secondary btn-sm btn-icon" title="รับชำระ" onclick="openPaymentModal(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">💰</button>'
+      : '';
     const actions = voided
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
       : '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
+        + payBtn
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ยกเลิก (เก็บเลขไว้)" onclick="voidDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🚫</button>'
         + (st === 'draft'
             ? '<button class="btn btn-danger btn-sm btn-icon" title="ลบ (ร่างที่ยังไม่ออก)" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
             : '');
+    // Paid/remaining hint (payable docs only, when partially paid)
+    const paid = docState.payMap[d.id] || 0;
+    const rem  = (parseFloat(d.total) || 0) - paid;
+    const payHint = (!voided && PAYABLE_TYPES[d.doc_type] && paid > 0 && rem > 0.005)
+      ? '<div style="font-size:11px;color:var(--amber)">ค้าง ' + fmtNum(rem) + '</div>' : '';
     return '<tr' + (voided ? ' style="opacity:.55"' : '') + '>'
     + '<td style="white-space:nowrap"><span class="mono"' + (voided ? ' style="text-decoration:line-through"' : '') + '>' + escapeHtml(d.doc_number) + '</span></td>'
     + '<td style="white-space:nowrap">' + formatDate(d.doc_date) + '</td>'
     + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(d.customer_name_th) + '">' + escapeHtml(d.customer_name_th) + '</td>'
-    + '<td class="mono" style="text-align:right;white-space:nowrap">' + fmtNum(d.total) + '</td>'
+    + '<td class="mono" style="text-align:right;white-space:nowrap">' + fmtNum(d.total) + payHint + '</td>'
     + '<td style="white-space:nowrap"><span class="badge badge-' + st + '">' + statusLabel(st) + '</span></td>'
     + '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">' + actions + '</div></td>'
     + '</tr>';
@@ -3945,6 +3978,107 @@ async function voidDoc(id, num) {
   await loadDocList(docState.type);
   loading(false);
   if (res) { renderDocList(); toast('🚫 ยกเลิกเอกสารเรียบร้อย'); }
+}
+
+// ── PAYMENTS (record money received against a document) ───────────────────
+let payModalDoc = null;
+
+async function openPaymentModal(id) {
+  loading(true);
+  const d = await api('getDocument', { id });
+  loading(false);
+  if (!d) return;
+  payModalDoc = d;
+  renderPaymentModal();
+}
+
+function renderPaymentModal() {
+  const d = payModalDoc;
+  document.getElementById('payment-modal')?.remove();
+  const total = parseFloat(d.total) || 0;
+  const pays  = d.payments || [];
+  const paid  = pays.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  const rem   = Math.max(0, total - paid);
+
+  const rows = pays.length
+    ? pays.map(p =>
+        '<tr>'
+        + '<td style="padding:5px 8px">' + formatDate(p.pay_date) + '</td>'
+        + '<td style="padding:5px 8px">' + escapeHtml(p.method || '-') + '</td>'
+        + '<td style="padding:5px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(p.note || '') + '">' + escapeHtml(p.note || '') + '</td>'
+        + '<td class="mono" style="padding:5px 8px;text-align:right">' + fmtNum(p.amount) + '</td>'
+        + '<td style="padding:5px 8px;text-align:center"><button class="btn btn-danger btn-sm btn-icon" title="ลบ" onclick="deletePaymentRow(\'' + p.id + '\')">🗑</button></td>'
+        + '</tr>').join('')
+    : '<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">ยังไม่มีการรับชำระ</td></tr>';
+
+  const methodOpts = PAY_METHODS.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+  const fieldCss = 'padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;outline:none';
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop';
+  wrap.id = 'payment-modal';
+  wrap.innerHTML =
+    '<div class="modal" style="width:560px;max-width:95vw">'
+    + '<h2 style="margin-bottom:4px">💰 รับชำระเงิน</h2>'
+    + '<div style="font-size:13px;color:var(--text3);margin-bottom:12px">' + escapeHtml(d.doc_number || '') + ' · ' + escapeHtml(d.customer_name_th || '') + '</div>'
+    + '<div style="display:flex;gap:10px;margin-bottom:14px">'
+    +   '<div style="flex:1;background:var(--surface2,#f7f6f3);border-radius:7px;padding:8px 12px"><div style="font-size:11px;color:var(--text3)">ยอดรวม</div><div class="mono" style="font-weight:700">' + fmtNum(total) + '</div></div>'
+    +   '<div style="flex:1;background:var(--surface2,#f7f6f3);border-radius:7px;padding:8px 12px"><div style="font-size:11px;color:var(--text3)">ชำระแล้ว</div><div class="mono" style="font-weight:700;color:var(--accent2)">' + fmtNum(paid) + '</div></div>'
+    +   '<div style="flex:1;background:var(--surface2,#f7f6f3);border-radius:7px;padding:8px 12px"><div style="font-size:11px;color:var(--text3)">คงเหลือ</div><div class="mono" style="font-weight:700;color:' + (rem > 0.005 ? 'var(--amber)' : 'var(--accent2)') + '">' + fmtNum(rem) + '</div></div>'
+    + '</div>'
+    + '<div class="card-scroll" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px">'
+    +   '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2,#f7f6f3)">'
+    +     '<th style="padding:6px 8px;text-align:left">วันที่</th><th style="padding:6px 8px;text-align:left">วิธี</th><th style="padding:6px 8px;text-align:left">หมายเหตุ</th><th style="padding:6px 8px;text-align:right">จำนวน</th><th></th>'
+    +   '</tr></thead><tbody>' + rows + '</tbody></table>'
+    + '</div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">เพิ่มการรับชำระ</div>'
+    + '<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
+    +   '<input id="pay-date" value="' + isoToDisplay(new Date()) + '" placeholder="วว/ดด/ปปปป" style="' + fieldCss + '">'
+    +   '<input id="pay-amount" type="number" min="0" step="0.01" value="' + (rem > 0.005 ? rem.toFixed(2) : '') + '" placeholder="จำนวนเงิน" style="' + fieldCss + '">'
+    +   '<select id="pay-method" style="' + fieldCss + '">' + methodOpts + '</select>'
+    + '</div>'
+    + '<input id="pay-note" placeholder="หมายเหตุ (ไม่บังคับ)" style="width:100%;' + fieldCss + ';margin-bottom:14px">'
+    + '<div class="modal-actions">'
+    +   '<button class="btn btn-secondary" onclick="closePaymentModal()">ปิด</button>'
+    +   '<button class="btn btn-primary" onclick="addPayment()">➕ บันทึกรับชำระ</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', e => { if (e.target === wrap) closePaymentModal(); });
+  setTimeout(() => document.getElementById('pay-amount')?.focus(), 50);
+}
+
+async function addPayment() {
+  const disp   = document.getElementById('pay-date')?.value || '';
+  const iso    = displayToIso(disp);
+  const amount = parseFloat(document.getElementById('pay-amount')?.value);
+  const method = document.getElementById('pay-method')?.value || '';
+  const note   = document.getElementById('pay-note')?.value || '';
+  if (!iso || iso.length < 8) { toast('กรุณากรอกวันที่ให้ถูกต้อง', 'error'); return; }
+  if (!(amount > 0)) { toast('จำนวนเงินต้องมากกว่า 0', 'error'); return; }
+  loading(true);
+  const res = await api('savePayment', {}, { doc_id: payModalDoc.id, pay_date: iso, amount, method, note });
+  loading(false);
+  if (!res) return;
+  toast('✅ บันทึกรับชำระ ' + fmtNum(amount) + ' บาท');
+  payModalDoc = await api('getDocument', { id: payModalDoc.id }); // refresh totals + status
+  renderPaymentModal();
+}
+
+async function deletePaymentRow(pid) {
+  const ok = await confirmModal({ title: '🗑 ลบการรับชำระ', message: 'ต้องการลบรายการรับชำระนี้?', confirmText: 'ลบ', danger: true });
+  if (!ok) return;
+  loading(true);
+  await api('deletePayment', { id: pid });
+  payModalDoc = await api('getDocument', { id: payModalDoc.id });
+  loading(false);
+  renderPaymentModal();
+}
+
+async function closePaymentModal() {
+  document.getElementById('payment-modal')?.remove();
+  // Refresh the list so paid/remaining + any status change are reflected.
+  if (docState.type) { await loadDocList(docState.type); renderDocList(); }
+  payModalDoc = null;
 }
 
 async function backToDocList() {
