@@ -1212,11 +1212,11 @@ tr:hover td { background: var(--accent-lt); }
           </div>
           <div class="field">
             <label>หมายเหตุ (ภาษาไทย)</label>
-            <textarea id="note_th" rows="3" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+            <textarea id="note_th" rows="6" placeholder="หมายเหตุเพิ่มเติม... (กด Enter เพื่อขึ้นบรรทัดใหม่)"></textarea>
           </div>
           <div class="field">
             <label>Note (English)</label>
-            <textarea id="note_en" rows="3" placeholder="Additional notes..."></textarea>
+            <textarea id="note_en" rows="6" placeholder="Additional notes..."></textarea>
           </div>
         </div>
       </div>
@@ -2072,14 +2072,12 @@ async function newQuotation() {
   const revEl2 = document.getElementById('qt_revision');
   if (revEl2) revEl2.value = 0;
 
-  // Get next number
-  loading(true);
-  const num = await api('nextQtNumber');
-  loading(false);
-  if (num) {
-    document.getElementById('qt_number').value = num;
-    document.getElementById('qt-number-display').textContent = num;
-  }
+  // Don't issue a number yet — it's assigned on save so abandoned drafts
+  // don't burn numbers and leave gaps. Show a placeholder until then.
+  const qtNumEl = document.getElementById('qt_number');
+  if (qtNumEl) { qtNumEl.value = ''; qtNumEl.placeholder = 'ออกอัตโนมัติเมื่อบันทึก'; }
+  const qtNumPill = document.getElementById('qt-number-display');
+  if (qtNumPill) qtNumPill.textContent = '(ออกเมื่อบันทึก)';
 
   // Reset items & annex
   document.getElementById('items-body').innerHTML = '';
@@ -2378,8 +2376,9 @@ function buildQTBody() {
 
 async function saveQuotation() {
   const body = buildQTBody();
-  if (!body.qt_number || !body.subject_th || !body.customer_name_th) {
-    toast('❌ กรุณากรอกข้อมูลให้ครบ (เลขที่, หัวข้อ, ชื่อลูกค้า)', 'error');
+  // qt_number is issued by the backend on save when blank, so it's not required here.
+  if (!body.subject_th || !body.customer_name_th) {
+    toast('❌ กรุณากรอกข้อมูลให้ครบ (หัวข้อ, ชื่อลูกค้า)', 'error');
     return;
   }
   loading(true);
@@ -2389,6 +2388,13 @@ async function saveQuotation() {
   } else {
     result = await api('saveQuotation', {}, body);
     if (result?.id) currentQT.id = result.id;
+  }
+  // Reflect the number the backend issued (for new quotations)
+  if (result?.qt_number) {
+    const el = document.getElementById('qt_number');
+    if (el) el.value = result.qt_number;
+    const pill = document.getElementById('qt-number-display');
+    if (pill) pill.textContent = result.qt_number;
   }
   await loadQuotations();
   loading(false);
@@ -2649,8 +2655,8 @@ function renderPreview(qt) {
     <!-- PAYMENT / NOTE -->
     ${((qt.payment_terms_th||qt.payment_terms)||qt.payment_terms_en||qt.note_th) ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;font-size:12px">
-      ${(qt.payment_terms_th||qt.payment_terms)?`<div><strong>เงื่อนไขการชำระเงิน:</strong><br>${qt.payment_terms_th||qt.payment_terms}</div>`:''}
-      ${qt.note_th?`<div><strong>หมายเหตุ:</strong><br>${qt.note_th}</div>`:''}
+      ${(qt.payment_terms_th||qt.payment_terms)?`<div><strong>เงื่อนไขการชำระเงิน:</strong><br><span style="white-space:pre-line">${escapeHtml(qt.payment_terms_th||qt.payment_terms)}</span></div>`:''}
+      ${qt.note_th?`<div><strong>หมายเหตุ:</strong><br><span style="white-space:pre-line">${escapeHtml(qt.note_th)}</span></div>`:''}
     </div>` : ''}
 
     <!-- BANK -->
@@ -3738,7 +3744,7 @@ function buildDocForm(doc) {
     + '</div></div>'
     // note + status
     + '<div class="section"><div class="grid-2">'
-    + '<div class="field"><label>หมายเหตุ</label><textarea id="doc-note">' + escapeHtml(doc.note || '') + '</textarea></div>'
+    + '<div class="field"><label>หมายเหตุ</label><textarea id="doc-note" rows="6" placeholder="กด Enter เพื่อขึ้นบรรทัดใหม่">' + escapeHtml(doc.note || '') + '</textarea></div>'
     + '<div class="field"><label>สถานะ</label><select id="doc-status" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">'
       + '<option value="draft">Draft</option><option value="sent">ส่งแล้ว</option>'
       + '<option value="approved">อนุมัติ / ชำระแล้ว</option><option value="rejected">ยกเลิก</option>'
