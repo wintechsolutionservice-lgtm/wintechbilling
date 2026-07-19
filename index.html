@@ -7,43 +7,75 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ── Login Page ────────────────────────────────────── */
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 50%, var(--accent-deep) 100%);
-  padding: 24px;
+/* ── Login Page — two-panel split ──────────────────── */
+.login-page { min-height: 100vh; background: var(--surface); }
+.login-split { display: grid; grid-template-columns: 1.08fr 1fr; min-height: 100vh; }
+
+/* Left: brand / marketing panel */
+.login-brandpanel {
+  position: relative; overflow: hidden; color: #fff;
+  background: linear-gradient(150deg, var(--accent-deep) 0%, var(--accent) 100%);
+  padding: 56px clamp(36px, 5vw, 64px) 40px;
+  display: flex; flex-direction: column; justify-content: space-between;
 }
-.login-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 40px 44px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+.login-brandpanel::before {
+  content: ''; position: absolute; right: -120px; top: -120px;
+  width: 380px; height: 380px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.12), transparent 70%);
+  pointer-events: none;
 }
-.login-logo {
-  text-align: center;
-  margin-bottom: 28px;
+.login-brandpanel::after {
+  content: ''; position: absolute; left: -80px; bottom: -100px;
+  width: 300px; height: 300px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(249,168,37,.16), transparent 70%);
+  pointer-events: none;
 }
+.login-brandpanel > * { position: relative; z-index: 1; }
+.login-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-size: 12.5px; font-weight: 600; letter-spacing: .02em;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24);
+  padding: 6px 15px; border-radius: 999px;
+}
+.login-brandpanel h1 {
+  font-size: clamp(25px, 2.9vw, 37px); line-height: 1.22; font-weight: 800;
+  margin: 24px 0 16px; text-wrap: balance; letter-spacing: -.01em;
+}
+.login-brandpanel .brand-sub {
+  font-size: 15px; color: rgba(255,255,255,.85); max-width: 42ch; line-height: 1.7; margin: 0;
+}
+.login-steps { display: flex; align-items: center; gap: 10px; margin-top: 34px; flex-wrap: wrap; }
+.login-step {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px; padding: 15px 14px; min-width: 92px;
+  backdrop-filter: blur(2px);
+}
+.login-step .ic { font-size: 22px; line-height: 1; }
+.login-step span:last-child { font-size: 12.5px; font-weight: 600; }
+.login-step-arrow { color: rgba(255,255,255,.55); font-size: 18px; font-weight: 700; }
+.login-copy { font-size: 12px; color: rgba(255,255,255,.6); }
+
+/* Right: form panel */
+.login-formpanel { display: flex; align-items: center; justify-content: center; padding: 44px 28px; background: var(--surface); }
+.login-card { width: 100%; max-width: 384px; }
+.login-logo { text-align: left; margin-bottom: 26px; }
 .login-logo .logo-mark {
-  width: 64px; height: 64px;
+  width: 56px; height: 56px;
   background: linear-gradient(135deg, #F9A825, #FFD600);
-  border-radius: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 900;
-  color: #7B0000;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 16px rgba(249,168,37,.4);
+  border-radius: 15px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 900; color: #7B0000;
+  margin-bottom: 16px; box-shadow: 0 6px 18px rgba(249,168,37,.35);
 }
-.login-logo h2 { font-size: 17px; font-weight: 800; color: var(--accent); margin-bottom: 2px; }
-.login-logo p  { font-size: 12px; color: var(--text3); }
+.login-logo h2 { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 3px; letter-spacing: -.01em; }
+.login-logo p  { font-size: 13.5px; color: var(--text3); }
 .login-field { margin-bottom: 18px; }
+
+@media (max-width: 860px) {
+  .login-split { grid-template-columns: 1fr; }
+  .login-brandpanel { display: none; }
+}
 .login-field label { display:block; font-size:13px; font-weight:600; color:var(--text2); margin-bottom:6px; }
 .login-field input {
   width: 100%;
@@ -153,28 +185,28 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #FDF8F0;
+  --bg:        #F7F5F1;
   --surface:   #FFFFFF;
-  --border:    #F0E4D0;
-  --border2:   #E0C8A0;
-  --text:      #1A1210;
+  --border:    #ECE6DC;
+  --border2:   #E1D8CB;
+  --text:      #211A16;
   --text2:     #5C4A40;
   --text3:     #A08878;
   --accent:    #B71C1C;
-  --accent2:   #D32F2F;
-  --accent-deep: #8B0000;
-  --accent-lt: #FDECEA;
+  --accent2:   #C62828;
+  --accent-deep: #8B1114;
+  --accent-lt: #FBEBE9;
   --red:       #B71C1C;
-  --red-lt:    #FDECEA;
-  --amber:     #F57F17;
-  --amber-lt:  #FFF8E1;
+  --red-lt:    #FBEBE9;
+  --amber:     #E08A16;
+  --amber-lt:  #FFF6E6;
   --gold:      #F9A825;
   --gold-lt:   #FFFDE7;
-  --radius:    9px;
-  --radius-lg: 16px;
-  --shadow:    0 1px 2px rgba(20,14,12,.04), 0 4px 12px rgba(20,14,12,.05);
-  --shadow-md: 0 8px 24px rgba(20,14,12,.09), 0 2px 8px rgba(20,14,12,.05);
-  --shadow-lift: 0 14px 34px rgba(20,14,12,.14), 0 4px 10px rgba(20,14,12,.06);
+  --radius:    11px;
+  --radius-lg: 18px;
+  --shadow:    0 1px 2px rgba(30,20,16,.03), 0 4px 14px rgba(30,20,16,.05);
+  --shadow-md: 0 10px 28px rgba(30,20,16,.08), 0 2px 8px rgba(30,20,16,.04);
+  --shadow-lift: 0 16px 38px rgba(30,20,16,.13), 0 4px 12px rgba(30,20,16,.06);
 }
 
 /* ── Selectable color themes — override the accent family only ── */
@@ -198,18 +230,18 @@ body {
 
 /* ── Layout ───────────────────────────────────────── */
 .app-header {
-  background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 60%, var(--accent2) 100%);
+  background: linear-gradient(100deg, var(--accent-deep) 0%, var(--accent) 100%);
   color: #fff;
-  padding: 0 16px;
-  height: 52px;
+  padding: 0 18px;
+  height: 54px;
   display: flex;
   align-items: center;
   gap: 8px;
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 12px rgba(139,0,0,.35);
-  border-bottom: 2px solid #F9A825;
+  box-shadow: 0 1px 3px rgba(30,20,16,.12);
+  border-bottom: 1px solid rgba(249,168,37,.55);
   overflow: hidden;
 }
 .app-header .logo { font-size: 15px; font-weight: 800; letter-spacing: .3px; display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -247,10 +279,10 @@ body {
 .menu-toggle:hover { background: rgba(249,168,37,.3); }
 .sidebar {
   position: fixed; top:0; left:0; bottom:0; width: 244px;
-  background: linear-gradient(160deg, var(--accent-deep) 0%, var(--accent) 55%, var(--accent2) 100%);
+  background: linear-gradient(165deg, var(--accent-deep) 0%, var(--accent) 100%);
   color:#fff; z-index:300; display:flex; flex-direction:column;
   transform: translateX(-100%); transition: transform .25s ease;
-  box-shadow: 2px 0 18px rgba(0,0,0,.25); border-right:2px solid #F9A825;
+  box-shadow: 1px 0 3px rgba(30,20,16,.14); border-right:1px solid rgba(249,168,37,.5);
 }
 .sidebar.open { transform: translateX(0); }
 .sidebar-brand {
@@ -303,22 +335,22 @@ body {
 @media (min-width: 768px) { .stats-row { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; } }
 .stat-card {
   background: var(--surface);
-  border: 1px solid rgba(20,14,12,.05);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px 22px;
+  padding: 22px 24px;
   box-shadow: var(--shadow);
   transition: transform .18s ease, box-shadow .18s ease;
 }
 .stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .stat-card.featured { box-shadow: var(--shadow-md); }
 .stat-card .label { font-size: 12px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-.stat-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
-@media (min-width: 768px) { .stat-card .value { font-size: 28px; } }
-.stat-card .sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
-.stat-card.featured { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; border-color: var(--accent-deep); }
-.stat-card.featured .label { color: rgba(255,255,255,.7); }
-.stat-card.featured .value { color: #FFD600; }
-.stat-card.featured .sub { color: rgba(255,255,255,.6); }
+.stat-card .value { font-size: 23px; font-weight: 700; margin-top: 5px; font-family: 'IBM Plex Mono', monospace; letter-spacing: -.01em; }
+@media (min-width: 768px) { .stat-card .value { font-size: 29px; } }
+.stat-card .sub { font-size: 12px; color: var(--text3); margin-top: 3px; }
+.stat-card.featured { background: linear-gradient(145deg, var(--accent) 0%, var(--accent-deep) 100%); color:#fff; border-color: transparent; }
+.stat-card.featured .label { color: rgba(255,255,255,.72); }
+.stat-card.featured .value { color: #fff; }
+.stat-card.featured .sub { color: rgba(255,255,255,.66); }
 
 .toolbar {
   display: flex;
@@ -893,33 +925,54 @@ tr:hover td { background: var(--accent-lt); }
 
 <!-- ══ LOGIN PAGE ═════════════════════════════════════════ -->
 <div id="page-login" class="login-page" style="display:none">
-  <div class="login-card">
-    <div class="login-logo">
-      <img id="login-logo-img" alt="" style="display:none;max-height:70px;max-width:220px;object-fit:contain;margin:0 auto 12px">
-      <div class="logo-mark">WT</div>
-      <h2 id="login-brand-name">ระบบบัญชี</h2>
-      <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+  <div class="login-split">
+    <!-- Brand / marketing side -->
+    <div class="login-brandpanel">
+      <div>
+        <span class="login-eyebrow">● ระบบออกเอกสารและบัญชี</span>
+        <h1>ออกใบเสนอราคา แจ้งหนี้ ใบกำกับภาษี ครบจบในระบบเดียว</h1>
+        <p class="brand-sub">สร้างเอกสาร ติดตามการชำระเงิน และออกใบเสร็จ พร้อมพิมพ์เป็น PDF ได้ทันทีทุกที่ทุกเวลา</p>
+        <div class="login-steps">
+          <div class="login-step"><span class="ic">📄</span><span>ออกเอกสาร</span></div>
+          <span class="login-step-arrow">→</span>
+          <div class="login-step"><span class="ic">💰</span><span>รับชำระ</span></div>
+          <span class="login-step-arrow">→</span>
+          <div class="login-step"><span class="ic">🧾</span><span>ออกใบเสร็จ</span></div>
+        </div>
+      </div>
+      <div class="login-copy" id="login-copy">© <span id="login-copy-name">ระบบบัญชี</span> · สงวนลิขสิทธิ์</div>
     </div>
-    <div class="login-error" id="login-error"></div>
-    <div class="login-field" id="api-url-field">
-      <label>Apps Script URL</label>
-      <input type="url" id="login-api-url" placeholder="https://script.google.com/macros/s/..." autocomplete="off"
-        style="font-size:13px"
-        onchange="saveApiUrlFromLogin()">
-      <span style="font-size:11px;color:var(--text3);margin-top:3px;display:block">กรอกครั้งแรกเพื่อเชื่อมต่อระบบ</span>
-    </div>
-    <div class="login-field">
-      <label>ชื่อผู้ใช้ / Username</label>
-      <input type="text" id="login-username" placeholder="username" autocomplete="username"
-        onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
-    </div>
-    <div class="login-field">
-      <label>รหัสผ่าน / Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter') doLogin()">
-    </div>
-    <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
 
+    <!-- Login form side -->
+    <div class="login-formpanel">
+      <div class="login-card">
+        <div class="login-logo">
+          <img id="login-logo-img" alt="" style="display:none;max-height:64px;max-width:200px;object-fit:contain;margin:0 0 14px">
+          <div class="logo-mark">WT</div>
+          <h2 id="login-brand-name">ระบบบัญชี</h2>
+          <p>เข้าสู่ระบบเพื่อใช้งาน</p>
+        </div>
+        <div class="login-error" id="login-error"></div>
+        <div class="login-field" id="api-url-field">
+          <label>Apps Script URL</label>
+          <input type="url" id="login-api-url" placeholder="https://script.google.com/macros/s/..." autocomplete="off"
+            style="font-size:13px"
+            onchange="saveApiUrlFromLogin()">
+          <span style="font-size:11px;color:var(--text3);margin-top:3px;display:block">กรอกครั้งแรกเพื่อเชื่อมต่อระบบ</span>
+        </div>
+        <div class="login-field">
+          <label>ชื่อผู้ใช้</label>
+          <input type="text" id="login-username" placeholder="username" autocomplete="username"
+            onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
+        </div>
+        <div class="login-field">
+          <label>รหัสผ่าน</label>
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+        <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1816,6 +1869,8 @@ function applyBranding() {
   }
   const lb = document.getElementById('login-brand-name');
   if (lb) lb.textContent = nameTh;
+  const lcn = document.getElementById('login-copy-name');
+  if (lcn) lcn.textContent = nameTh;
 
   // Sidebar brand
   const sbLogo  = document.getElementById('sidebar-brand-logo');
