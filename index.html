@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Stop iOS Safari turning phone numbers / tax IDs / dates into tel: links
+     (they render blue + underlined, which shows up when printing to PDF) -->
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
 <title>ระบบบัญชี — ใบเสนอราคา</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -973,7 +976,21 @@ input.dpick {
 }
 .dp-foot button:hover { background: var(--accent-lt); }
 
-@media print { body > *:not(#print-target) { display: none !important; } }
+/* Running-header wrapper (see docPrint / renderPreview). The global `td` rule
+   above would otherwise give its invisible cells padding and a border. */
+.doc-runner { width: 100%; border-collapse: collapse; }
+.doc-runner > thead > tr > td,
+.doc-runner > tbody > tr > td {
+  padding: 0; border: none; background: none; vertical-align: top;
+}
+
+@media print {
+  body > *:not(#print-target) { display: none !important; }
+  /* auto-detected tel:/mailto: links must not print blue + underlined */
+  a, a:link, a:visited { color: inherit !important; text-decoration: none !important; }
+  .doc-runner > thead { display: table-header-group; }
+  .doc-runner > tbody > tr { page-break-inside: auto; }
+}
 </style>
 </head>
 <body>
@@ -2658,9 +2675,17 @@ function renderPreview(qt) {
       .print-table { width:100%;border-collapse:collapse;font-size:12px; }
       .print-table th { background:#f0f0ec;padding:8px;border:1px solid #ddd;font-size:11px; }
       .print-table td { padding:7px 8px;border:1px solid #ddd;vertical-align:top; }
+      /* Running header: the whole document sits in a table whose <thead>
+         browsers repeat at the top of every printed page. This is the only
+         cross-browser way to get a header on page 2+. Cells carry no padding
+         or borders so the wrapper is invisible. */
+      .doc-runner { width:100%; border-collapse:collapse; }
+      .doc-runner > thead > tr > td,
+      .doc-runner > tbody > tr > td { padding:0; border:none; vertical-align:top; }
     </style>
 
-    <!-- HEADER — compact 2-col -->
+    <table class="doc-runner"><thead><tr><td>
+    <!-- HEADER — compact 2-col (repeats on every printed page) -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:3px solid #B71C1C">
       <!-- LEFT: logo + company -->
       <div style="display:flex;align-items:center;gap:14px">
@@ -2684,6 +2709,8 @@ function renderPreview(qt) {
         <div style="font-size:12px;color:#aaa;letter-spacing:2px;margin-top:2px">Quotation</div>
       </div>
     </div>
+    </td></tr></thead>
+    <tbody><tr><td>
 
     <!-- INFO ROW: customer left | doc details right -->
     <div style="display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:12px;background:#F8F8F5;border:1px solid #E8E0D8;border-radius:4px;padding:10px 14px">
@@ -2738,22 +2765,6 @@ function renderPreview(qt) {
     <!-- ITEMS TABLE -->
     <table class="print-table" style="margin-bottom:0">
       <thead>
-        <!-- Mini header row — hidden on screen, repeats page 2+ when printing -->
-        <tr class="thead-company-row" style="display:none;background:#fff;border-bottom:2px solid #B71C1C">
-          <td colspan="6" style="padding:4px 6px;border:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px">
-              <div style="display:flex;align-items:center;gap:6px">
-                ${(cfg.company_logo||'') ? `<img src="${cfg.company_logo}" style="max-height:20px;object-fit:contain">` : ''}
-                <strong style="color:#B71C1C;font-size:11px">${cfg.company_name_th||''}</strong>
-                <span style="color:#aaa">${cfg.company_name_en||''}</span>
-              </div>
-              <div style="text-align:right">
-                <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C">${qt.qt_number||''}${parseInt(qt.revision||0)>0?' Rev.'+qt.revision:''}</span>
-                <span style="color:#aaa;margin-left:4px">ใบเสนอราคา</span>
-              </div>
-            </div>
-          </td>
-        </tr>
         <tr>
           <th style="width:36px;text-align:center">#</th>
           <th style="text-align:left">รายการ / Description</th>
@@ -2803,10 +2814,11 @@ function renderPreview(qt) {
         <div style="color:#888;margin-top:4px">${qt.customer_name_th||''}</div>
       </div>
     </div>
+    </td></tr></tbody></table>
 
     ${annexHtml ? `
-    <!-- ANNEX PAGE BREAK -->
-    <div style="page-break-before:always;padding-top:0">
+    <!-- ANNEX — own runner table so its own header repeats on its own pages -->
+    <table class="doc-runner" style="page-break-before:always"><thead><tr><td>
 
       <!-- หัวเอกสาร Annex เหมือนใบเสนอราคา -->
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;margin-bottom:10px;border-bottom:3px solid #B71C1C">
@@ -2827,6 +2839,8 @@ function renderPreview(qt) {
           <div style="font-size:11px;color:#888">วันที่: ${formatDate(qt.qt_date)}</div>
         </div>
       </div>
+      </td></tr></thead>
+      <tbody><tr><td>
 
       <!-- ข้อมูลลูกค้าและโครงการแบบย่อ -->
       <div style="background:#F8F8F5;border:1px solid #E8E0D8;border-radius:4px;padding:8px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-start;font-size:12px">
@@ -2843,7 +2857,7 @@ function renderPreview(qt) {
 
       <!-- Annex content -->
       ${annexHtml}
-    </div>` : ''}
+    </td></tr></tbody></table>` : ''}
   `;
 }
 
@@ -2851,39 +2865,21 @@ function printDoc() {
   const content = document.getElementById('print-content').innerHTML;
   const qtNum   = document.getElementById('qt-number-display')?.textContent || 'quotation';
 
-  // Build compact header for page 2+
-  const cfg = CONFIG;
-  const sig1 = SIG1 || '';
-  const logoHtml = (cfg.company_logo||'')
-    ? `<img src="${cfg.company_logo}" style="max-height:32px;max-width:70px;object-fit:contain;vertical-align:middle;margin-right:8px">`
-    : '';
-  const repeatHeader = `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:2px solid #B71C1C;margin-bottom:8px;font-size:11px">
-      <div style="display:flex;align-items:center">
-        ${logoHtml}
-        <div>
-          <span style="font-weight:800;color:#B71C1C">${cfg.company_name_th||''}</span>
-          <span style="color:#888;margin-left:8px">${cfg.company_name_en||''}</span>
-        </div>
-      </div>
-      <div style="text-align:right;color:#888">
-        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#B71C1C">${qtNum}</span>
-        <span style="margin-left:8px">ใบเสนอราคา / Quotation</span>
-      </div>
-    </div>`;
-
-  // Compact repeat header for page 2+
-  const logoTag = (cfg.company_logo||'')
-    ? `<img src="${cfg.company_logo}" style="max-height:28px;max-width:70px;object-fit:contain;margin-right:8px;vertical-align:middle">`
-    : '';
+  // The running header now lives in the .doc-runner <thead> built by
+  // renderPreview(), so it comes along inside `content` — nothing to build here.
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <!-- Lock the layout width to A4 (794px) so mobile lays out the header the
          same as desktop instead of squeezing it to the phone's screen width. -->
     <meta name="viewport" content="width=794">
+    <!-- iOS Safari auto-links phone numbers / tax IDs / dates and prints them
+         blue + underlined. Turn the detection off, and neutralise any link that
+         still slips through (older WebViews ignore the meta). -->
+    <meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
       * { box-sizing:border-box; margin:0; padding:0; }
+      a, a:link, a:visited { color:inherit !important; text-decoration:none !important; }
       body { font-family:'Sarabun',sans-serif; font-size:13px; background:#fff; }
 
       @page { size:A4; margin:12mm 12mm 16mm; }
@@ -2894,10 +2890,10 @@ function printDoc() {
         tfoot { display:table-footer-group; }
         tr    { page-break-inside:avoid; }
         .sig-block { page-break-inside:avoid; }
-        /* Mini company header inside <thead> repeats on EVERY printed page
-           (including page 1, where it duplicated under the project name).
-           CSS can't limit a repeating thead row to page 2+, so keep it hidden. */
-        .thead-company-row { display:none !important; }
+        /* The runner wrapper's own rows must stay breakable, otherwise the
+           page-break-inside:avoid rule above would force the whole document
+           onto a single page. */
+        .doc-runner > tbody > tr { page-break-inside:auto; }
         /* page number bottom-right */
         .footer-pagenum {
           position: fixed;
@@ -2906,25 +2902,7 @@ function printDoc() {
           font-family: 'IBM Plex Mono',monospace;
           counter-increment: page;
         }
-        /* repeat header from page 2 */
-        .rh { display: block !important; }
       }
-
-      /* Repeat header — hidden on screen, block on print */
-      .rh {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        height: 14mm;
-        background: #fff;
-        border-bottom: 2px solid #B71C1C;
-        padding: 4px 12mm;
-        font-size: 11px;
-        z-index: 99;
-      }
-      /* But hide on first page using :first-page workaround:
-         We add a zero-height element at the very top so the fixed
-         repeat-header naturally doesn't cover page 1 content */
 
       .no-print {
         background:#B71C1C; padding:10px 16px;
@@ -4720,7 +4698,10 @@ function docInnerHTML(d) {
   if (!rows) rows = '<tr><td colspan="5" style="padding:14px;text-align:center;color:#bbb">ไม่มีรายการ</td></tr>';
   const hasVat = (d.vat_type && d.vat_type !== 'none');
   const disc = parseFloat(d.discount) || 0;
-  return ''
+  // Whole doc sits in a table so the <thead> (VOID banner + company header)
+  // repeats at the top of every printed page — the only cross-browser way to
+  // get a running header. See .doc-runner CSS in docPrint().
+  return '<table class="doc-runner"><thead><tr><td>'
     + (d.status === 'voided'
         ? '<div style="border:2px solid #37352F;color:#37352F;background:#f4f3f0;text-align:center;font-weight:800;letter-spacing:.2em;padding:8px;margin-bottom:14px;border-radius:6px">ยกเลิก / VOID'
           + (d.void_reason ? '<div style="font-size:11px;font-weight:500;letter-spacing:normal;margin-top:3px">เหตุผล: ' + escapeHtml(d.void_reason) + '</div>' : '')
@@ -4739,6 +4720,7 @@ function docInnerHTML(d) {
     + '<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#B71C1C">' + escapeHtml(cfg.th || '') + '</div>'
     + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(cfg.en || '') + '</div></div>'
     + '</div>'
+    + '</td></tr></thead><tbody><tr><td>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">'
     + '<div style="background:#f9f8f5;border-radius:7px;padding:10px 12px">'
     + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">' + escapeHtml(cfg.partyTh || 'ลูกค้า') + ' / ' + escapeHtml(cfg.partyEn || 'Customer') + '</div>'
@@ -4792,7 +4774,8 @@ function docInnerHTML(d) {
     +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้มีอำนาจลงนาม / Authorized'
     +   (co.company_name_th ? '<div style="color:#aaa;margin-top:3px">' + escapeHtml(co.company_name_th) + '</div>' : '')
     + '</div>'
-    + '</div>';
+    + '</div>'
+    + '</td></tr></tbody></table>';
 }
 
 function docPrint() {
@@ -4800,12 +4783,25 @@ function docPrint() {
   if (!el) { toast('ไม่พบเอกสาร', 'error'); return; }
   const css = '@page{size:A4 portrait;margin:1.4cm 1.6cm}'
     + '*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}'
-    + 'body{font-family:Sarabun,Arial,sans-serif;color:#1a1a1a;margin:0;padding:0;font-size:11pt}';
+    + 'body{font-family:Sarabun,Arial,sans-serif;color:#1a1a1a;margin:0;padding:0;font-size:11pt}'
+    // Neutralise any auto-detected tel:/mailto: link the meta below didn't stop
+    + 'a,a:link,a:visited{color:inherit!important;text-decoration:none!important}'
+    // Running header: repeat the .doc-runner <thead> on every page. The wrapper
+    // cells are invisible; its body row must stay breakable so long documents
+    // still paginate.
+    + '.doc-runner{width:100%;border-collapse:collapse}'
+    + '.doc-runner>thead{display:table-header-group}'
+    + '.doc-runner>tfoot{display:table-footer-group}'
+    + '.doc-runner>thead>tr>td,.doc-runner>tbody>tr>td{padding:0;border:none;vertical-align:top}'
+    + '.doc-runner>tbody>tr{page-break-inside:auto}'
+    + 'tbody tr{page-break-inside:avoid}';
   const w = window.open('', '_blank');
   if (!w) { toast('กรุณาอนุญาต popup แล้วลองใหม่', 'error'); return; }
   w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
     // Lock layout width to A4 (794px) so mobile matches desktop, not the phone width.
     + '<meta name="viewport" content="width=794">'
+    // iOS Safari auto-links phone numbers / tax IDs / dates → blue underlined text on the PDF
+    + '<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">'
     + '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
     + '<style>' + css + '</style></head><body>' + el.innerHTML + '</body></html>');
   w.document.close();
