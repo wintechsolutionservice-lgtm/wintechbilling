@@ -921,6 +921,58 @@ tr:hover td { background: var(--accent-lt); }
   .print-page { width: 100%; padding: 24px; }
 }
 
+/* ── Date picker (ปฏิทิน พ.ศ.) ───────────────────────────── */
+/* `input.dpick` (not `.dpick`) so it outranks `.field input`'s background shorthand */
+input.dpick {
+  cursor: pointer;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23A08878'%20stroke-width='2'%20stroke-linecap='round'%3E%3Crect%20x='3'%20y='5'%20width='18'%20height='16'%20rx='2'/%3E%3Cpath%20d='M8%203v4M16%203v4M3%2010h18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+}
+.dp-pop {
+  position: fixed; z-index: 900; width: 282px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 10px;
+  user-select: none;
+}
+.dp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.dp-nav {
+  flex: none; width: 30px; height: 30px; line-height: 1;
+  border: 1px solid var(--border); background: var(--surface);
+  border-radius: 8px; cursor: pointer; color: var(--text2); font-size: 16px;
+}
+.dp-nav:hover { background: var(--accent-lt); border-color: var(--accent); color: var(--accent); }
+.dp-head select {
+  flex: 1 1 auto; min-width: 0; padding: 5px 4px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text);
+  font-family: inherit; font-size: 13.5px;
+}
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-wd { text-align: center; font-size: 11px; font-weight: 600; color: var(--text3); padding: 4px 0; }
+.dp-day {
+  border: none; background: none; padding: 7px 0; border-radius: 8px;
+  cursor: pointer; font-family: inherit; font-size: 13.5px; color: var(--text);
+}
+.dp-day:hover { background: var(--accent-lt); }
+.dp-day.dp-today { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); font-weight: 700; }
+.dp-day.dp-sel { background: var(--accent); color: #fff; font-weight: 700; }
+.dp-foot {
+  display: flex; justify-content: space-between;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+}
+.dp-foot button {
+  border: none; background: none; color: var(--accent);
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; padding: 4px 8px; border-radius: 8px;
+}
+.dp-foot button:hover { background: var(--accent-lt); }
+
 @media print { body > *:not(#print-target) { display: none !important; } }
 </style>
 </head>
@@ -1169,7 +1221,7 @@ tr:hover td { background: var(--accent-lt); }
           </div>
           <div class="field">
             <label>วันที่ <span class="req">*</span></label>
-            <input type="text" id="qt_date" placeholder="31/05/2569"
+            <input type="text" id="qt_date" class="dpick" placeholder="31/05/2569"
               pattern="\d{2}/\d{2}/\d{4}"
               oninput="onQtDateInput(this)"
               style="font-family:'IBM Plex Mono',monospace;letter-spacing:.5px">
@@ -1719,8 +1771,14 @@ let CUSTOMERS = [];
 let currentQT = { id: null, items: [], annex: [] };
 let allQuotations = [];
 
+// Demo mode: open with ?demo → the whole app runs against an in-browser mock
+// backend (see the DEMO section far below). No Google, no login, isolated per
+// visitor, resettable. Real (non-demo) URLs are unaffected.
+const DEMO = new URLSearchParams(location.search).has('demo');
+
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  if (DEMO) { await bootDemo(); return; } // in-browser demo — skip login/backend
   if (DEFAULT_API_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
     API_URL = DEFAULT_API_URL;
     localStorage.setItem('api_url', DEFAULT_API_URL);
@@ -1910,6 +1968,7 @@ async function refreshSession() {
 
 // ── API ───────────────────────────────────────────────────
 async function api(action, params = {}, body = null) {
+  if (DEMO) return demoApi(action, params, body); // in-browser mock backend
   if (!API_URL) { toast('ยังไม่ได้ตั้งค่า API URL', 'error'); return null; }
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
@@ -3250,6 +3309,7 @@ async function doLogout() {
 
 // API call without token (for login/logout)
 async function apiNoAuth(action, bodyObj) {
+  if (DEMO) return demoApi(action, {}, bodyObj || {});
   if (!API_URL) throw new Error('ยังไม่ได้ตั้งค่า API URL');
   const url = new URL(API_URL);
   const res  = await fetch(url, {
@@ -3259,6 +3319,245 @@ async function apiNoAuth(action, bodyObj) {
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Error');
   return json.data;
+}
+
+// ══════════════════════════════════════════════════════════
+//  DEMO MODE — in-browser mock backend (?demo)
+//  Every api() call is served from a sample database kept in localStorage,
+//  isolated per visitor and resettable. No Google, no login, nothing sent
+//  anywhere. Mirrors the real backend's behaviour closely enough to try the
+//  whole flow: create → pay → receipt → void, etc.
+// ══════════════════════════════════════════════════════════
+let DEMO_DB = null;
+let _demoSeq = 0;
+function _demoId(prefix) { return prefix + Date.now().toString(36) + (_demoSeq++); }
+function _nowIso()   { return new Date().toISOString(); }
+function _todayIso() { return new Date().toISOString().slice(0, 10); }
+function _clone(x)   { return x == null ? x : JSON.parse(JSON.stringify(x)); }
+
+function demoLoad() {
+  try { const s = localStorage.getItem('demo_store'); if (s) return JSON.parse(s); } catch (e) {}
+  const seed = demoSeed();
+  try { localStorage.setItem('demo_store', JSON.stringify(seed)); } catch (e) {}
+  return seed;
+}
+function demoSave() { try { localStorage.setItem('demo_store', JSON.stringify(DEMO_DB)); } catch (e) {} }
+function demoReset() { localStorage.removeItem('demo_store'); location.reload(); }
+
+async function bootDemo() {
+  DEMO_DB = demoLoad();
+  applyTheme((DEMO_DB.config && DEMO_DB.config.ui_theme) || 'maroon');
+  SESSION = { username: 'demo', display_name: 'ผู้ใช้ทดลอง', role: 'admin' }; // no token
+  applySession();
+  await bootApp();
+  renderDemoBanner();
+}
+
+function renderDemoBanner() {
+  if (document.getElementById('demo-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'demo-banner';
+  b.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;background:rgba(33,26,22,.93);color:#fff;padding:9px 10px 9px 16px;border-radius:999px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.3);backdrop-filter:blur(4px);max-width:94vw';
+  b.innerHTML = '<span style="line-height:1.3">🧪 โหมดทดลองใช้ · ข้อมูลเก็บเฉพาะในเบราว์เซอร์นี้ ไม่ถูกบันทึกจริง</span>'
+    + '<button onclick="demoReset()" style="background:#fff;color:#B0181C;border:none;border-radius:999px;padding:6px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">↺ รีเซ็ตข้อมูล</button>';
+  document.body.appendChild(b);
+}
+
+// Running numbers — same rules as the real backend
+function demoNextQtNumber() {
+  const c = DEMO_DB.config;
+  const now = new Date();
+  const ym = '' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0');
+  let running = parseInt(c.qt_running || 0);
+  if (String(c.qt_running_month || '') !== ym) running = 0;
+  running += 1; c.qt_running = running; c.qt_running_month = ym;
+  return (c.qt_prefix || 'WT') + '-' + ym + '-' + String(running).padStart(5, '0');
+}
+function demoNextDocNumber(type) {
+  const c = DEMO_DB.config;
+  const be = '' + (new Date().getFullYear() + 543);
+  const defPre = { invoice:'INV', taxinvoice:'TAX', billing:'BILL', receipt:'REC', debit:'DBN', purchaseorder:'PO' };
+  const rk = 'doc_' + type + '_running', yk = 'doc_' + type + '_month', pk = 'doc_' + type + '_prefix';
+  let running = parseInt(c[rk] || 0);
+  if (String(c[yk] || '') !== be) running = 0;
+  running += 1; c[rk] = running; c[yk] = be;
+  const prefix = c[pk] || defPre[type] || String(type).toUpperCase();
+  return prefix + '-' + be + '-' + String(running).padStart(4, '0');
+}
+function demoCreateDoc(body) {
+  const id = _demoId('D');
+  const num = body.doc_number || demoNextDocNumber(body.doc_type);
+  const doc = Object.assign({}, body, {
+    id, doc_number: num, status: body.status || 'draft',
+    billed_in: body.billed_in || '', created_at: _nowIso(), updated_at: _nowIso(),
+  });
+  doc.items = (body.items || []).map((it, i) => Object.assign({}, it, { seq: i + 1 }));
+  DEMO_DB.documents.push(doc);
+  return { id, doc_number: num };
+}
+
+async function demoApi(action, params, body) {
+  const a = Object.assign({}, params || {}, body || {});
+  const db = DEMO_DB;
+  try {
+    switch (action) {
+      case 'getConfig':   return _clone(db.config);
+      case 'saveConfig': { const RES = { action:1, token:1 }; Object.entries(a).forEach(([k,v]) => { if (!RES[k]) db.config[k] = v; }); demoSave(); return { saved: 1 }; }
+      case 'getBranding': return { company_name_th: db.config.company_name_th || '', company_name_en: db.config.company_name_en || '', logo: db.assets.company_logo || '' };
+      case 'login':       return { token: 'demo', username: 'demo', display_name: 'ผู้ใช้ทดลอง', role: 'admin' };
+      case 'verifyToken': return { username: 'demo', display_name: 'ผู้ใช้ทดลอง', role: 'admin' };
+      case 'logout':      return { ok: true };
+      case 'getUsers':    return [{ id:'U001', username:'admin', display_name:'ผู้ดูแลระบบ (เดโม)', role:'admin', active:'TRUE', password_hash:'***' }];
+      case 'saveUser':    return { id: a.id || 'U001' };
+      case 'deleteUser':  return { deleted: a.id };
+
+      case 'getCustomers': return _clone(db.customers);
+      case 'saveCustomer': {
+        if (a.id) { const f = db.customers.find(c => String(c.id) === String(a.id)); if (f) { Object.assign(f, a); demoSave(); return { id: a.id, updated: true }; } }
+        const key = String(a.name_th || '').trim().toLowerCase();
+        if (key) { const dup = db.customers.find(c => String(c.name_th || '').trim().toLowerCase() === key); if (dup) { Object.assign(dup, a, { id: dup.id }); demoSave(); return { id: dup.id, updated: true, matchedByName: true }; } }
+        const id = _demoId('C'); db.customers.push(Object.assign({}, a, { id, created_at: _nowIso() })); demoSave(); return { id };
+      }
+      case 'deleteCustomer': { db.customers = db.customers.filter(c => String(c.id) !== String(a.id)); demoSave(); return { deleted: a.id }; }
+      case 'getItems': return _clone(db.items);
+
+      case 'getQuotations': return _clone(db.quotations);
+      case 'getQuotation': { const q = db.quotations.find(x => String(x.id) === String(a.id)); if (!q) throw new Error('Quotation not found'); return _clone(q); }
+      case 'nextQtNumber': { const n = demoNextQtNumber(); demoSave(); return n; }
+      case 'saveQuotation': {
+        const id = _demoId('QT'); const num = a.qt_number || demoNextQtNumber();
+        const qt = Object.assign({}, a, { id, qt_number: num, status: a.status || 'draft', created_at: _nowIso(), updated_at: _nowIso() });
+        qt.items = (a.items || []).map((it, i) => Object.assign({}, it, { seq: i + 1 }));
+        qt.annex = (a.annex || []).map((s, i) => Object.assign({}, s, { section_order: i + 1 }));
+        db.quotations.push(qt); demoSave(); return { id, qt_number: num };
+      }
+      case 'updateQuotation': {
+        const q = db.quotations.find(x => String(x.id) === String(a.id)); if (!q) throw new Error('Quotation not found');
+        Object.assign(q, a, { updated_at: _nowIso() });
+        q.items = (a.items || []).map((it, i) => Object.assign({}, it, { seq: i + 1 }));
+        q.annex = (a.annex || []).map((s, i) => Object.assign({}, s, { section_order: i + 1 }));
+        demoSave(); return { id: a.id };
+      }
+      case 'deleteQuotation': { db.quotations = db.quotations.filter(x => String(x.id) !== String(a.id)); demoSave(); return { deleted: a.id }; }
+      case 'setQuotationStatus': {
+        const q = db.quotations.find(x => String(x.id) === String(a.id)); if (!q) throw new Error('Quotation not found');
+        q.status = a.status || 'approved'; q.updated_at = _nowIso();
+        if (a.accepted_date !== undefined) q.accepted_date = a.accepted_date;
+        demoSave(); return { id: a.id, status: q.status, accepted_date: a.accepted_date || '' };
+      }
+
+      case 'getDocuments': { const all = db.documents; return _clone(a.type ? all.filter(d => String(d.doc_type) === String(a.type)) : all); }
+      case 'getDocument': {
+        const d = db.documents.find(x => String(x.id) === String(a.id)); if (!d) throw new Error('Document not found');
+        const doc = _clone(d); doc.items = doc.items || [];
+        doc.payments = db.payments.filter(p => String(p.doc_id) === String(a.id)).map(_clone);
+        doc.paid = doc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        return doc;
+      }
+      case 'nextDocNumber': { const n = demoNextDocNumber(a.type || a.doc_type); demoSave(); return n; }
+      case 'saveDocument': { if (!a.doc_type) throw new Error('Missing doc_type'); const r = demoCreateDoc(a); demoSave(); return r; }
+      case 'updateDocument': {
+        const d = db.documents.find(x => String(x.id) === String(a.id)); if (!d) throw new Error('Missing document');
+        if (d.status === 'voided') throw new Error('เอกสารถูกยกเลิกแล้ว ไม่สามารถแก้ไขได้');
+        Object.assign(d, a, { updated_at: _nowIso() });
+        d.items = (a.items || []).map((it, i) => Object.assign({}, it, { seq: i + 1 }));
+        demoSave(); return { id: a.id };
+      }
+      case 'deleteDocument': {
+        const doc = db.documents.find(x => String(x.id) === String(a.id));
+        db.documents = db.documents.filter(x => String(x.id) !== String(a.id));
+        db.payments  = db.payments.filter(p => String(p.doc_id) !== String(a.id));
+        if (doc && doc.doc_type === 'billing') db.documents.forEach(x => { if (String(x.billed_in) === String(a.id)) x.billed_in = ''; });
+        demoSave(); return { deleted: a.id };
+      }
+      case 'voidDocument': {
+        const doc = db.documents.find(x => String(x.id) === String(a.id)); if (!doc) throw new Error('ไม่พบเอกสาร');
+        if (doc.status === 'voided') return { id: a.id, status: 'voided' };
+        if (doc.doc_type === 'taxinvoice' && doc.billed_in) throw new Error('ใบกำกับภาษีนี้อยู่ในใบวางบิลแล้ว กรุณายกเลิก/ลบใบวางบิลก่อน');
+        doc.status = 'voided'; doc.voided_at = _nowIso(); doc.void_reason = a.reason || ''; doc.updated_at = _nowIso();
+        if (doc.doc_type === 'billing') db.documents.forEach(x => { if (String(x.billed_in) === String(a.id)) x.billed_in = ''; });
+        demoSave(); return { id: a.id, status: 'voided' };
+      }
+      case 'saveBillingNote': {
+        const ids = Array.isArray(a.member_ids) ? a.member_ids : [];
+        if (!ids.length) throw new Error('กรุณาเลือกใบกำกับภาษีอย่างน้อย 1 ใบ');
+        ids.forEach(id => { const d = db.documents.find(x => String(x.id) === String(id)); if (!d) throw new Error('ไม่พบเอกสาร: ' + id); if (d.status === 'voided') throw new Error('ใบกำกับภาษี ' + (d.doc_number || id) + ' ถูกยกเลิกแล้ว'); if (d.billed_in) throw new Error('ใบกำกับภาษี ' + (d.doc_number || id) + ' ถูกวางบิลไปแล้ว'); });
+        const saved = demoCreateDoc(Object.assign({}, a, { doc_type: 'billing' }));
+        ids.forEach(id => { const d = db.documents.find(x => String(x.id) === String(id)); if (d) d.billed_in = saved.id; });
+        demoSave(); return { id: saved.id, doc_number: saved.doc_number, members: ids.length };
+      }
+
+      case 'getPayments': { const all = db.payments; return _clone(a.doc_id ? all.filter(p => String(p.doc_id) === String(a.doc_id)) : all); }
+      case 'savePayment': {
+        const docId = a.doc_id; const amt = parseFloat(a.amount);
+        if (!docId) throw new Error('Missing doc_id');
+        if (!(amt > 0)) throw new Error('จำนวนเงินต้องมากกว่า 0');
+        const doc = db.documents.find(d => String(d.id) === String(docId)); if (!doc) throw new Error('ไม่พบเอกสาร');
+        if (doc.status === 'voided') throw new Error('เอกสารถูกยกเลิกแล้ว บันทึกรับชำระไม่ได้');
+        db.payments.push({ id: _demoId('PM'), doc_id: docId, doc_type: doc.doc_type, doc_number: doc.doc_number, customer_name_th: doc.customer_name_th, pay_date: a.pay_date || _todayIso(), amount: amt, method: a.method || '', note: a.note || '', created_at: _nowIso() });
+        const paid = db.payments.filter(p => String(p.doc_id) === String(docId)).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const total = parseFloat(doc.total) || 0;
+        if (total > 0 && paid >= total - 0.005 && doc.status !== 'approved') doc.status = 'approved';
+        demoSave(); return { paid, total, remaining: Math.max(0, total - paid) };
+      }
+      case 'deletePayment': { db.payments = db.payments.filter(p => String(p.id) !== String(a.id)); demoSave(); return { deleted: a.id }; }
+
+      case 'getAssets': return _clone(db.assets);
+      case 'saveAsset': { if (!a.key) throw new Error('Missing asset key'); if (a.data) db.assets[a.key] = a.data; else delete db.assets[a.key]; demoSave(); return { key: a.key, size: (a.data || '').length }; }
+      case 'exportAll': return { exported_at: _nowIso(), demo: true, Documents: db.documents, Payments: db.payments, Customers: db.customers, Quotations: db.quotations };
+
+      default: return null;
+    }
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Demo error'), 'error');
+    return null;
+  }
+}
+
+// Sample Thai data for the demo — enough to show the dashboard, lists, and the
+// pay → receipt / void flows without any setup.
+function demoSeed() {
+  const now = new Date();
+  const be  = now.getFullYear() + 543;
+  const ym  = '' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0');
+  const day = off => { const x = new Date(now); x.setDate(x.getDate() + off); return x.toISOString().slice(0, 10); };
+  return {
+    config: {
+      company_name_th: 'บริษัท ตัวอย่างเดโม จำกัด',
+      company_name_en: 'Demo Company Co., Ltd.',
+      company_address_th: '99/9 อาคารเดโมทาวเวอร์ ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
+      company_tax_id: '0105560000009', company_phone: '02-000-0000', company_email: 'demo@example.com',
+      payment_terms: 'ชำระภายใน 30 วัน นับจากวันที่ได้รับใบแจ้งหนี้',
+      bank_name: 'ธนาคารกสิกรไทย', bank_account: '123-4-56789-0', bank_account_name: 'บริษัท ตัวอย่างเดโม จำกัด', bank_account_type: 'ออมทรัพย์', bank_branch: 'สาขาคลองเตย',
+      vat_rate: '7', ui_theme: 'maroon',
+      qt_prefix: 'WT', qt_running: 2, qt_running_month: ym,
+      doc_invoice_prefix: 'INV', doc_taxinvoice_prefix: 'TAX', doc_billing_prefix: 'BILL', doc_receipt_prefix: 'REC', doc_purchaseorder_prefix: 'PO',
+      doc_invoice_running: 1, doc_invoice_month: '' + be,
+      doc_taxinvoice_running: 1, doc_taxinvoice_month: '' + be,
+    },
+    customers: [
+      { id: 'C1', name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', address_th: '88 ถนนพระราม 9 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพฯ 10310', tax_id: '0105551000011', branch_type: 'หน่วยงานใหญ่', branch_number: '', contact: 'คุณสมชาย ใจดี', phone: '02-111-2222', email: 'contact@greentech.co.th', created_at: _nowIso() },
+      { id: 'C2', name_th: 'ห้างหุ้นส่วนจำกัด สยามการช่าง', address_th: '45/7 ถนนเจริญกรุง แขวงบางรัก เขตบางรัก กรุงเทพฯ 10500', tax_id: '0103552000022', branch_type: 'หน่วยงานใหญ่', branch_number: '', contact: 'คุณมาลี ศรีสุข', phone: '02-333-4444', email: 'siam@example.com', created_at: _nowIso() },
+      { id: 'C3', name_th: 'บริษัท บลูโอเชียน เทรดดิ้ง จำกัด', address_th: '12 ถนนสุขุมวิท 24 แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110', tax_id: '0105553000033', branch_type: 'สาขา', branch_number: '00002', contact: 'คุณอนุชา วงศ์ทอง', phone: '02-555-6666', email: 'blue@example.com', created_at: _nowIso() },
+    ],
+    items: [],
+    quotations: [
+      { id: 'QT1', qt_number: 'WT-' + ym + '-00001', qt_date: day(-14), valid_days: 30, valid_until: day(16), customer_id: 'C1', customer_name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', customer_tax_id: '0105551000011', customer_address_th: '88 ถนนพระราม 9 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพฯ 10310', customer_phone: '02-111-2222', subject_th: 'พัฒนาเว็บไซต์องค์กรและระบบจัดการเนื้อหา', subtotal: 120000, discount: 0, after_discount: 120000, vat_type: 'exclusive', vat_amount: 8400, total: 128400, payment_terms: 'ชำระภายใน 30 วัน', note_th: '', status: 'approved', accepted_date: day(-8), created_at: _nowIso(), updated_at: _nowIso(),
+        items: [ { description_th: 'ออกแบบและพัฒนาเว็บไซต์องค์กร', qty: 1, unit_th: 'งาน', unit_price: 80000, amount: 80000, seq: 1 }, { description_th: 'ระบบจัดการเนื้อหา (CMS)', qty: 1, unit_th: 'ระบบ', unit_price: 40000, amount: 40000, seq: 2 } ], annex: [] },
+      { id: 'QT2', qt_number: 'WT-' + ym + '-00002', qt_date: day(-5), valid_days: 30, valid_until: day(25), customer_id: 'C2', customer_name_th: 'ห้างหุ้นส่วนจำกัด สยามการช่าง', customer_tax_id: '0103552000022', customer_address_th: '45/7 ถนนเจริญกรุง แขวงบางรัก เขตบางรัก กรุงเทพฯ 10500', customer_phone: '02-333-4444', subject_th: 'งานติดตั้งระบบไฟฟ้าโรงงาน', subtotal: 45000, discount: 0, after_discount: 45000, vat_type: 'none', vat_amount: 0, total: 45000, payment_terms: 'ชำระภายใน 15 วัน', note_th: 'ราคานี้ยังไม่รวมค่าขนส่ง', status: 'draft', accepted_date: '', created_at: _nowIso(), updated_at: _nowIso(),
+        items: [ { description_th: 'ตู้ควบคุมไฟฟ้า (MDB)', qty: 1, unit_th: 'ตู้', unit_price: 30000, amount: 30000, seq: 1 }, { description_th: 'ค่าติดตั้งและเดินสาย', qty: 1, unit_th: 'งาน', unit_price: 15000, amount: 15000, seq: 2 } ], annex: [] },
+    ],
+    documents: [
+      { id: 'D1', doc_type: 'invoice', doc_number: 'INV-' + be + '-0001', doc_date: day(-6), due_date: day(24), ref_no: 'WT-' + ym + '-00001', customer_id: 'C1', customer_name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', customer_tax_id: '0105551000011', customer_address_th: '88 ถนนพระราม 9 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพฯ 10310', customer_phone: '02-111-2222', payment_terms: 'ชำระภายใน 30 วัน', subject: 'พัฒนาเว็บไซต์องค์กรและระบบจัดการเนื้อหา', subtotal: 120000, discount: 0, after_discount: 120000, vat_type: 'exclusive', vat_amount: 8400, total: 128400, note: '', status: 'sent', billed_in: '', created_at: _nowIso(), updated_at: _nowIso(),
+        items: [ { description: 'ออกแบบและพัฒนาเว็บไซต์องค์กร', qty: 1, unit: 'งาน', unit_price: 80000, discount_pct: 0, amount: 80000, seq: 1 }, { description: 'ระบบจัดการเนื้อหา (CMS)', qty: 1, unit: 'ระบบ', unit_price: 40000, discount_pct: 0, amount: 40000, seq: 2 } ] },
+      { id: 'D2', doc_type: 'taxinvoice', doc_number: 'TAX-' + be + '-0001', doc_date: day(-3), due_date: day(12), ref_no: '', customer_id: 'C3', customer_name_th: 'บริษัท บลูโอเชียน เทรดดิ้ง จำกัด', customer_tax_id: '0105553000033', customer_address_th: '12 ถนนสุขุมวิท 24 แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110', customer_phone: '02-555-6666', payment_terms: 'ชำระภายใน 15 วัน', subject: 'ค่าที่ปรึกษาโครงการ', subtotal: 300000, discount: 0, after_discount: 300000, vat_type: 'exclusive', vat_amount: 21000, total: 321000, note: '', status: 'sent', billed_in: '', created_at: _nowIso(), updated_at: _nowIso(),
+        items: [ { description: 'ค่าที่ปรึกษาโครงการ (รายเดือน)', qty: 3, unit: 'เดือน', unit_price: 100000, discount_pct: 0, amount: 300000, seq: 1 } ] },
+    ],
+    payments: [
+      { id: 'PM1', doc_id: 'D1', doc_type: 'invoice', doc_number: 'INV-' + be + '-0001', customer_name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', pay_date: day(-2), amount: 50000, method: 'โอนเงิน', note: 'มัดจำงวดแรก', created_at: _nowIso() },
+    ],
+    assets: {},
+  };
 }
 
 // ── USERS MANAGEMENT ──────────────────────────────────────
@@ -3655,7 +3954,7 @@ function acceptQuotation(id) {
     '<div class="modal" style="width:420px;max-width:94vw">'
     + '<h2>✔ ลูกค้ายอมรับใบเสนอราคา</h2>'
     + '<div class="field"><label>วันที่ลูกค้ายอมรับ (วว/ดด/ปปปป พ.ศ.)</label>'
-    +   '<input id="accept-date" value="' + today + '" placeholder="' + today + '" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:15px">'
+    +   '<input id="accept-date" class="dpick" value="' + today + '" placeholder="' + today + '" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:15px">'
     + '</div>'
     + '<div style="font-size:12px;color:var(--text3);margin-top:6px">หลังยอมรับจะสร้างใบแจ้งหนี้/ใบกำกับภาษีจากใบนี้ได้</div>'
     + '<div class="modal-actions">'
@@ -4101,7 +4400,7 @@ function renderPaymentModal() {
     + '</div>'
     + '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">เพิ่มการรับชำระ</div>'
     + '<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
-    +   '<input id="pay-date" value="' + isoToDisplay(new Date()) + '" placeholder="วว/ดด/ปปปป" style="' + fieldCss + '">'
+    +   '<input id="pay-date" class="dpick" value="' + isoToDisplay(new Date()) + '" placeholder="วว/ดด/ปปปป" style="' + fieldCss + '">'
     +   '<input id="pay-amount" type="number" min="0" step="0.01" value="' + (rem > 0.005 ? rem.toFixed(2) : '') + '" placeholder="จำนวนเงิน" style="' + fieldCss + '">'
     +   '<select id="pay-method" style="' + fieldCss + '">' + methodOpts + '</select>'
     + '</div>'
@@ -4176,9 +4475,9 @@ function buildDocForm(doc) {
     // doc info
     + '<div class="section"><div class="grid-2">'
     + '<div class="field"><label>เลขที่</label><input id="doc-number" value="' + escapeHtml(doc.doc_number || '') + '" placeholder="ออกอัตโนมัติเมื่อบันทึก"></div>'
-    + '<div class="field"><label>วันที่ (วว/ดด/ปปปป)</label><input id="doc-date" value="' + escapeHtml(doc.doc_date || '') + '"></div>'
+    + '<div class="field"><label>วันที่</label><input id="doc-date" class="dpick" value="' + escapeHtml(doc.doc_date || '') + '" placeholder="วว/ดด/ปปปป"></div>'
     + (showDue
-        ? '<div class="field"><label>ครบกำหนด / Due Date</label><input id="doc-due" value="' + escapeHtml(doc.due_date || '') + '"></div>'
+        ? '<div class="field"><label>ครบกำหนด</label><input id="doc-due" class="dpick" value="' + escapeHtml(doc.due_date || '') + '" placeholder="วว/ดด/ปปปป"></div>'
         : '<input type="hidden" id="doc-due" value="">')
     + '<div class="field"><label>อ้างอิง</label><input id="doc-ref" value="' + escapeHtml(doc.ref_no || '') + '" placeholder="เช่น เลขที่ใบเสนอราคา"></div>'
     + '</div></div>'
@@ -4596,6 +4895,127 @@ function displayToIso(str) {
   const [d, m, yBE] = parts.map(Number);
   return (yBE - 543) + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
 }
+
+// ══════════════════════════════════════════════════════════
+//  DATE PICKER (ปฏิทิน พ.ศ.)
+//  Any <input class="dpick"> pops a Thai calendar on click/focus. The field
+//  value stays DD/MM/YYYY(พ.ศ.) text, so formatDate()/displayToIso() and every
+//  save path keep working unchanged — typing by hand still works too.
+// ══════════════════════════════════════════════════════════
+const DP_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                   'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const DP_WD = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+let dpEl = null, dpTarget = null, dpView = null;
+
+// "DD/MM/BBBB" (พ.ศ.) or "YYYY-MM-DD" (ค.ศ.) → Date, else null
+function dpParse(v) {
+  const s = String(v || '').trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) { const d = new Date(+m[3] - 543, +m[2] - 1, +m[1]); return isNaN(d) ? null : d; }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d) ? null : d; }
+  return null;
+}
+
+function dpClose() { if (dpEl) { dpEl.remove(); dpEl = null; dpTarget = null; } }
+
+function dpOpen(input) {
+  if (dpEl && dpTarget === input) return;
+  dpClose();
+  dpTarget = input;
+  const sel = dpParse(input.value) || new Date();
+  dpView = new Date(sel.getFullYear(), sel.getMonth(), 1);
+  dpEl = document.createElement('div');
+  dpEl.className = 'dp-pop';
+  document.body.appendChild(dpEl);
+  dpRender();
+  dpPosition();
+}
+
+function dpPosition() {
+  if (!dpEl || !dpTarget) return;
+  if (!dpTarget.isConnected) { dpClose(); return; } // host modal/page was torn down
+  const r = dpTarget.getBoundingClientRect();
+  const h = dpEl.offsetHeight, w = dpEl.offsetWidth;
+  let top = r.bottom + 6;
+  if (top + h > window.innerHeight - 8 && r.top - h - 6 > 8) top = r.top - h - 6; // flip above
+  const left = Math.min(r.left, window.innerWidth - w - 8);
+  dpEl.style.top  = Math.max(8, top) + 'px';
+  dpEl.style.left = Math.max(8, left) + 'px';
+}
+
+function dpRender() {
+  const y = dpView.getFullYear(), m = dpView.getMonth();
+  const sel = dpParse(dpTarget.value), today = new Date();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysIn   = new Date(y, m + 1, 0).getDate();
+  const same = (a, b) => a && b && a.getFullYear() === b.getFullYear()
+                      && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  let mOpts = '';
+  DP_MONTHS.forEach((n, i) => { mOpts += '<option value="' + i + '"' + (i === m ? ' selected' : '') + '>' + n + '</option>'; });
+  let yOpts = '';
+  for (let yy = today.getFullYear() - 10; yy <= today.getFullYear() + 10; yy++) {
+    yOpts += '<option value="' + yy + '"' + (yy === y ? ' selected' : '') + '>' + (yy + 543) + '</option>';
+  }
+
+  let cells = DP_WD.map(w => '<div class="dp-wd">' + w + '</div>').join('');
+  for (let i = 0; i < firstDow; i++) cells += '<div></div>';
+  for (let d = 1; d <= daysIn; d++) {
+    const dt  = new Date(y, m, d);
+    const cls = 'dp-day' + (same(dt, sel) ? ' dp-sel' : '') + (same(dt, today) ? ' dp-today' : '');
+    cells += '<button type="button" class="' + cls + '" onclick="dpPick(' + y + ',' + m + ',' + d + ')">' + d + '</button>';
+  }
+
+  dpEl.innerHTML =
+      '<div class="dp-head">'
+    +   '<button type="button" class="dp-nav" onclick="dpShift(-1)">‹</button>'
+    +   '<select onchange="dpSetView(this.value, null)">' + mOpts + '</select>'
+    +   '<select onchange="dpSetView(null, this.value)">' + yOpts + '</select>'
+    +   '<button type="button" class="dp-nav" onclick="dpShift(1)">›</button>'
+    + '</div>'
+    + '<div class="dp-grid">' + cells + '</div>'
+    + '<div class="dp-foot">'
+    +   '<button type="button" onclick="dpToday()">วันนี้</button>'
+    +   '<button type="button" onclick="dpClear()">ล้าง</button>'
+    + '</div>';
+}
+
+function dpShift(n) { dpView = new Date(dpView.getFullYear(), dpView.getMonth() + n, 1); dpRender(); dpPosition(); }
+function dpSetView(mo, yr) {
+  dpView = new Date(yr == null ? dpView.getFullYear() : +yr,
+                    mo == null ? dpView.getMonth()    : +mo, 1);
+  dpRender(); dpPosition();
+}
+
+// Write the value back and let existing handlers (calcValidUntil ฯลฯ) run
+function dpCommit(v) {
+  const t = dpTarget;
+  if (!t) return;
+  t.value = v;
+  t.dispatchEvent(new Event('input',  { bubbles: true }));
+  t.dispatchEvent(new Event('change', { bubbles: true }));
+  dpClose();
+}
+function dpPick(y, m, d) { dpCommit(isoToDisplay(new Date(y, m, d))); }
+function dpToday()       { dpCommit(isoToDisplay(new Date())); }
+function dpClear()       { dpCommit(''); }
+
+function isDpInput(el) { return !!(el && el.classList && el.classList.contains('dpick')); }
+
+document.addEventListener('mousedown', e => {
+  if (!dpEl) return;
+  if (dpEl.contains(e.target) || e.target === dpTarget) return;
+  dpClose();
+});
+document.addEventListener('click',   e => { if (isDpInput(e.target)) dpOpen(e.target); });
+document.addEventListener('focusin', e => {
+  if (isDpInput(e.target)) dpOpen(e.target);
+  else if (dpEl && !dpEl.contains(e.target)) dpClose();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') dpClose(); });
+window.addEventListener('resize', dpPosition);
+window.addEventListener('scroll', dpPosition, true);
 
 function statusLabel(s) {
   return { draft:'Draft', sent:'ส่งแล้ว', approved:'อนุมัติ', rejected:'ปฏิเสธ', voided:'ยกเลิก' }[s] || s;
