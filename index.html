@@ -2642,7 +2642,10 @@ function renderPreview(qt) {
     </tr>
   `).join('');
 
-  const annexHtml = (qt.annex || []).map((sec, idx) => {
+  // เลขลำดับหัวข้อ Annex นับเฉพาะ section ที่ตั้งชื่อหัวข้อไว้
+  // section ที่ปล่อยชื่อว่างจะพิมพ์แต่เนื้อหา ไม่มีเลข/เส้นคั่นโผล่มาเปล่า ๆ
+  let annexNo = 0;
+  const annexHtml = (qt.annex || []).map(sec => {
     let content = '';
     if (sec.annex_type === 'rich') {
       content = `<div style="white-space:pre-wrap;font-size:12px;line-height:1.7">${sec.section_content_th||''}</div>`;
@@ -2657,11 +2660,13 @@ function renderPreview(qt) {
         content = `<table style="width:100%;border-collapse:collapse;font-size:12px">${content}</table>`;
       } catch(e) { content = sec.rich_content || ''; }
     }
-    return `
-      <div style="margin-bottom:20px">
+    const title = (sec.section_title_th || '').trim();
+    const heading = title ? `
         <div style="font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd">
-          ${idx+1}. ${sec.section_title_th||''}
-        </div>
+          ${++annexNo}. ${title}
+        </div>` : '';
+    return `
+      <div style="margin-bottom:20px">${heading}
         ${content}
       </div>`;
   }).join('');
