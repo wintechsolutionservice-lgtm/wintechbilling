@@ -3700,7 +3700,8 @@ async function renderOverview() {
   const root = document.getElementById('overview-root');
   root.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">กำลังโหลดสรุปข้อมูล...</div>';
   // Voided documents keep their number but must not count toward any money total.
-  const docs = (await api('getDocuments') || []).filter(d => d.status !== 'voided');
+  const allDocs = await api('getDocuments') || [];
+  const docs = allDocs.filter(d => d.status !== 'voided');
   const num  = v => parseFloat(v) || 0;
   const monthOf = iso => String(iso || '').slice(0, 7);
 
@@ -3734,6 +3735,18 @@ async function renderOverview() {
     paidByDoc[p.doc_id] = (paidByDoc[p.doc_id] || 0) + amt;
     if (String(p.method) === WHT_METHOD) receivedWht += amt;
     else receivedCash += amt;
+  });
+  // Cash sales: a receipt issued without an invoice/tax invoice behind it has no
+  // payment row (the 💰 button only exists on receivables), so its money would
+  // never be counted. Receipts that reference a real document are already
+  // covered by that document's payments — counting those would double up.
+  const docNumbers = {};
+  allDocs.forEach(d => { if (d.doc_number) docNumbers[String(d.doc_number).trim()] = 1; });
+  const cashReceipts = docs.filter(d =>
+    d.doc_type === 'receipt' && !docNumbers[String(d.ref_no || '').trim()]);
+  cashReceipts.forEach(d => {
+    receivedCash += num(d.total) - num(d.wht_amount);
+    receivedWht  += num(d.wht_amount);
   });
   // Outstanding = unpaid balance on receivable documents (total − paid).
   const outstanding = docs
@@ -3777,7 +3790,9 @@ async function renderOverview() {
     + '<div class="stats-row">'
     + kpi('ค้างชำระ', fmtNum(outstanding), 'ยอดคงเหลือของแจ้งหนี้/กำกับภาษี/วางบิล (บาท)', true)
     + kpi('รับชำระแล้ว', fmtNum(receivedCash),
-        'เงินเข้าจริง (บาท)' + (receivedWht > 0 ? ' · หัก ณ ที่จ่ายอีก ' + fmtNum(receivedWht) : ''),
+        'เงินเข้าจริง (บาท)'
+          + (cashReceipts.length ? ' · รวมใบเสร็จขายสด ' + cashReceipts.length + ' ใบ' : '')
+          + (receivedWht > 0 ? ' · หัก ณ ที่จ่ายอีก ' + fmtNum(receivedWht) : ''),
         false, 'var(--accent2)')
     + kpi('เอกสารเดือนนี้', String(monthCount), fmtNum(monthSumTotal) + ' บาท', false, 'var(--amber)')
     + kpi('ใบเสนอราคา', String(qCount), fmtNum(qSum) + ' บาท', false)
