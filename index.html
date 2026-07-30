@@ -4676,9 +4676,11 @@ function docWhtRateChanged() {
   docCalc();
 }
 
-// Read the WHT inputs and work out base/amount. `after` = pre-VAT amount, used
-// as the base whenever the user hasn't overridden it (data-auto="1").
-function docWhtCalc(after) {
+// Read the WHT inputs and work out base/amount. `preVat` is the amount net of
+// VAT — that is the statutory base, so with VAT "รวมใน" the caller must strip
+// the VAT out first (after_discount is gross in that mode).
+function docWhtCalc(preVat) {
+  const after = preVat;
   const sel = document.getElementById('doc-wht-rate');
   if (!sel || sel.value === '') return { rate: 0, base: 0, amount: 0 };
   const rate = parseFloat(sel.value === 'custom' ? gvv('doc-wht-custom') : sel.value) || 0;
@@ -4712,7 +4714,7 @@ function docCalc() {
   document.getElementById('doc-after').textContent = fmtNum(after);
   document.getElementById('doc-vat-amt').textContent = fmtNum(vat);
   document.getElementById('doc-total').textContent = fmtNum(grand);
-  const wht = docWhtCalc(after);
+  const wht = docWhtCalc(vatType === 'inclusive' ? after - vat : after);
   const whtEl = document.getElementById('doc-wht-amt');
   if (whtEl) {
     whtEl.textContent = '-' + fmtNum(wht.amount);
@@ -4742,7 +4744,7 @@ function buildDocBody() {
   let vat = 0, grand = after;
   if (vatType === 'exclusive') { vat = after * 0.07; grand = after + vat; }
   else if (vatType === 'inclusive') { vat = after - (after / 1.07); grand = after; }
-  const wht = docWhtCalc(after);
+  const wht = docWhtCalc(vatType === 'inclusive' ? after - vat : after);
   return {
     id: docState.editingId || undefined,
     doc_type: docState.type,
