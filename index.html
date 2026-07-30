@@ -4908,8 +4908,9 @@ function docInnerHTML(d) {
         ? '<div style="clear:both;margin-top:10px;font-size:10.5px;color:#888">* ภาษีหัก ณ ที่จ่าย ' + escapeHtml(d.wht_rate) + '% คำนวณจากฐาน ' + fmtNum(d.wht_base) + ' บาท — กรุณาออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) ให้ด้วย</div>'
         : '')
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
-    // Bank / payment details — shown on money-collecting docs, not on purchase orders
-    + ((d.doc_type !== 'purchaseorder' && (co.bank_name || co.bank_account)) ?
+    // Bank details belong only on documents that ask for money. A receipt is
+    // proof the money already arrived, so "ชำระเงินที่:" makes no sense there.
+    + ((PAYABLE_TYPES[d.doc_type] && (co.bank_name || co.bank_account)) ?
         '<div style="margin-top:14px;padding:10px 14px;background:#f9f8f5;border:1px solid #e5e3dc;border-radius:7px;font-size:11.5px;color:#444">'
         + '<strong style="color:#B71C1C">ชำระเงินที่:</strong> ' + escapeHtml(co.bank_name || '')
         + (co.bank_account ? ' &nbsp;|&nbsp; เลขบัญชี: <strong>' + escapeHtml(co.bank_account) + '</strong>' : '')
