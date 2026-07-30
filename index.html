@@ -3481,7 +3481,17 @@ async function demoApi(action, params, body) {
         if (total > 0 && paid >= total - 0.005 && doc.status !== 'approved') doc.status = 'approved';
         demoSave(); return { paid, total, remaining: Math.max(0, total - paid) };
       }
-      case 'deletePayment': { db.payments = db.payments.filter(p => String(p.id) !== String(a.id)); demoSave(); return { deleted: a.id }; }
+      case 'deletePayment': {
+        const gone = db.payments.find(p => String(p.id) === String(a.id));
+        db.payments = db.payments.filter(p => String(p.id) !== String(a.id));
+        const doc = gone && db.documents.find(d => String(d.id) === String(gone.doc_id));
+        if (doc && doc.status === 'approved') { // mirror savePayment's auto-approve
+          const paid = db.payments.filter(p => String(p.doc_id) === String(doc.id)).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+          const total = parseFloat(doc.total) || 0;
+          if (total > 0 && paid < total - 0.005) doc.status = 'sent';
+        }
+        demoSave(); return { deleted: a.id };
+      }
 
       case 'getAssets': return _clone(db.assets);
       case 'saveAsset': { if (!a.key) throw new Error('Missing asset key'); if (a.data) db.assets[a.key] = a.data; else delete db.assets[a.key]; demoSave(); return { key: a.key, size: (a.data || '').length }; }
@@ -3906,7 +3916,19 @@ const DOC_TYPES = {
 // Document types that represent money owed to us (receivables) — the ones
 // payments are recorded against and that count toward "outstanding".
 const PAYABLE_TYPES = { invoice: 1, taxinvoice: 1, billing: 1 };
-const PAY_METHODS = ['เงินสด', 'โอนเงิน', 'เช็ค', 'บัตรเครดิต', 'อื่นๆ'];
+// Recording WHT as a payment line is what stops a fully-settled invoice from
+// showing "ค้าง 3%" forever — the customer keeps that 3% and remits it for us.
+const WHT_METHOD = 'หัก ณ ที่จ่าย';
+const PAY_METHODS = ['เงินสด', 'โอนเงิน', 'เช็ค', 'บัตรเครดิต', WHT_METHOD, 'อื่นๆ'];
+// Withholding tax (หัก ณ ที่จ่าย) — money docs only, not purchase orders.
+const WHT_TYPES = { invoice: 1, taxinvoice: 1, billing: 1, receipt: 1 };
+const WHT_RATES = [
+  { v: '1',  label: '1% ค่าขนส่ง' },
+  { v: '2',  label: '2% ค่าโฆษณา' },
+  { v: '3',  label: '3% ค่าบริการ / รับจ้างทำของ' },
+  { v: '5',  label: '5% ค่าเช่า' },
+  { v: '10', label: '10% วิชาชีพอิสระ / เงินปันผล' },
+];
 const docState = { type: null, list: [], editingId: null, payMap: {} };
 let previewedQtId = null; // quotation currently shown in the preview page (for convert)
 
@@ -4023,6 +4045,10 @@ async function createReceiptFromDoc(id) {
   const paid = pays.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
   if (!(paid > 0)) { toast('ยังไม่มีการรับชำระ — บันทึกรับชำระก่อน (💰)', 'error'); return; }
   const lastPay = pays[pays.length - 1];
+  // The WHT only belongs on the receipt if it is part of the amount being
+  // receipted — i.e. it was logged as a payment line. Otherwise `paid` is cash
+  // only and repeating the deduction would understate it twice.
+  const whtOnReceipt = pays.some(p => String(p.method) === WHT_METHOD);
   docState.type = 'receipt';
   docState.editingId = null;
   showPage('doc', null);
@@ -4037,6 +4063,12 @@ async function createReceiptFromDoc(id) {
     customer_phone: d.customer_phone,
     customer_email: d.customer_email,
     vat_type: 'none',
+    // Carry the WHT of the source document so the receipt shows the deduction
+    // and the net cash. The base comes from the source (its pre-VAT amount) —
+    // the receipt line itself is gross, so recomputing it here would be wrong.
+    wht_rate: whtOnReceipt ? (d.wht_rate || '') : '',
+    wht_base: whtOnReceipt ? (d.wht_base || '') : '',
+    wht_amount: whtOnReceipt ? (d.wht_amount || '') : '',
     items: [{
       description: 'รับชำระเงินตาม' + (DOC_TYPES[d.doc_type] ? DOC_TYPES[d.doc_type].th : 'เอกสาร') + ' เลขที่ ' + (d.doc_number || ''),
       qty: 1, unit: '', unit_price: paid, amount: paid,
@@ -4348,6 +4380,13 @@ function renderPaymentModal() {
   const pays  = d.payments || [];
   const paid  = pays.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
   const rem   = Math.max(0, total - paid);
+  // WHT the customer is keeping. Until it is recorded the invoice looks unpaid
+  // by exactly that amount, so offer a one-click entry and keep it out of the
+  // default cash amount.
+  const whtDue     = parseFloat(d.wht_amount) || 0;
+  const whtLogged  = pays.some(p => String(p.method) === WHT_METHOD);
+  const whtPending = (whtDue > 0 && !whtLogged && rem > 0.005) ? Math.min(whtDue, rem) : 0;
+  const cashDefault = Math.max(0, rem - whtPending);
 
   const rows = pays.length
     ? pays.map(p =>
@@ -4379,10 +4418,16 @@ function renderPaymentModal() {
     +     '<th style="padding:6px 8px;text-align:left">วันที่</th><th style="padding:6px 8px;text-align:left">วิธี</th><th style="padding:6px 8px;text-align:left">หมายเหตุ</th><th style="padding:6px 8px;text-align:right">จำนวน</th><th></th>'
     +   '</tr></thead><tbody>' + rows + '</tbody></table>'
     + '</div>'
+    + (whtPending > 0
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#6b5a1e">'
+          + '<span>เอกสารนี้ถูกหัก ณ ที่จ่าย ' + escapeHtml(d.wht_rate || '') + '% = <strong>' + fmtNum(whtPending) + '</strong> บาท (ลูกค้านำส่งสรรพากรแทน)</span>'
+          + '<button class="btn btn-secondary btn-sm" onclick="addWhtPayment()">➕ บันทึกยอดหัก</button>'
+          + '</div>'
+        : '')
     + '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">เพิ่มการรับชำระ</div>'
     + '<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
     +   '<input id="pay-date" class="dpick" value="' + isoToDisplay(new Date()) + '" placeholder="วว/ดด/ปปปป" style="' + fieldCss + '">'
-    +   '<input id="pay-amount" type="number" min="0" step="0.01" value="' + (rem > 0.005 ? rem.toFixed(2) : '') + '" placeholder="จำนวนเงิน" style="' + fieldCss + '">'
+    +   '<input id="pay-amount" type="number" min="0" step="0.01" value="' + (cashDefault > 0.005 ? cashDefault.toFixed(2) : '') + '" placeholder="จำนวนเงิน" style="' + fieldCss + '">'
     +   '<select id="pay-method" style="' + fieldCss + '">' + methodOpts + '</select>'
     + '</div>'
     + '<input id="pay-note" placeholder="หมายเหตุ (ไม่บังคับ)" style="width:100%;' + fieldCss + ';margin-bottom:14px">'
@@ -4410,6 +4455,26 @@ async function addPayment() {
   if (!res) return;
   toast('✅ บันทึกรับชำระ ' + fmtNum(amount) + ' บาท');
   payModalDoc = await api('getDocument', { id: payModalDoc.id }); // refresh totals + status
+  renderPaymentModal();
+}
+
+// Record the withholding tax as a payment line so the document settles to zero.
+async function addWhtPayment() {
+  const d = payModalDoc;
+  const amt = parseFloat(d.wht_amount) || 0;
+  if (!(amt > 0)) return;
+  loading(true);
+  const res = await api('savePayment', {}, {
+    doc_id  : d.id,
+    pay_date: displayToIso(isoToDisplay(new Date())),
+    amount  : amt,
+    method  : WHT_METHOD,
+    note    : 'หัก ณ ที่จ่าย ' + (d.wht_rate || '') + '% จากฐาน ' + fmtNum(d.wht_base),
+  });
+  loading(false);
+  if (!res) return;
+  toast('✅ บันทึกหัก ณ ที่จ่าย ' + fmtNum(amt) + ' บาท');
+  payModalDoc = await api('getDocument', { id: d.id });
   renderPaymentModal();
 }
 
@@ -4499,6 +4564,7 @@ function buildDocForm(doc) {
     + '<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--text3)">ยอดหลังหักส่วนลด</span><span id="doc-after" class="mono">0.00</span></div>'
     + '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="color:var(--text3);display:flex;align-items:center;gap:6px">VAT <select id="doc-vat-type" onchange="docCalc()" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px"><option value="none">ไม่มี</option><option value="exclusive">แยกนอก 7%</option><option value="inclusive">รวมใน 7%</option></select></span><span id="doc-vat-amt" class="mono">0.00</span></div>'
     + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px;font-weight:700;font-size:17px;color:var(--accent)"><span>ยอดรวมทั้งสิ้น</span><span id="doc-total" class="mono">0.00</span></div>'
+    + whtFormHTML(doc)
     + '</div></div>'
     // note + status
     + '<div class="section"><div class="grid-2">'
@@ -4567,6 +4633,65 @@ function addDocItem(item) {
   docCalc();
 }
 
+// ── หัก ณ ที่จ่าย (withholding tax) ───────────────────────────────────────
+// Only money documents get the block; for the rest it renders nothing and every
+// wht_* value stays 0. The base defaults to the pre-VAT amount (that is what the
+// Revenue Department computes on) but stays editable — a receipt raised for a
+// gross amount needs the base of the original invoice, not its own line total.
+function whtFormHTML(doc) {
+  if (!WHT_TYPES[docState.type]) return '';
+  const rate  = parseFloat(doc.wht_rate) || 0;
+  const isStd = WHT_RATES.some(r => parseFloat(r.v) === rate);
+  let opts = '<option value="">— ไม่มี —</option>';
+  WHT_RATES.forEach(r => {
+    opts += '<option value="' + r.v + '"' + (rate && isStd && parseFloat(r.v) === rate ? ' selected' : '') + '>' + r.label + '</option>';
+  });
+  opts += '<option value="custom"' + (rate && !isStd ? ' selected' : '') + '>กำหนดเอง…</option>';
+  const sm   = 'padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px';
+  const base = doc.wht_base != null && doc.wht_base !== '' ? parseFloat(doc.wht_base) : null;
+  const row  = (label, right) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+    + '<span style="color:var(--text3);font-size:12px">' + label + '</span>' + right + '</div>';
+  return '<div style="border-top:1px dashed var(--border);margin-top:8px;padding-top:6px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+    +   '<span style="color:var(--text3);white-space:nowrap">หัก ณ ที่จ่าย</span>'
+    +   '<select id="doc-wht-rate" onchange="docWhtRateChanged()" style="' + sm + ';flex:1;min-width:0;max-width:200px">' + opts + '</select>'
+    + '</div>'
+    + '<div id="doc-wht-detail"' + (rate > 0 ? '' : ' style="display:none"') + '>'
+    +   '<div id="doc-wht-custom-row"' + (rate && !isStd ? '' : ' style="display:none"') + '>'
+    +     row('อัตรา %', '<input id="doc-wht-custom" type="number" min="0" max="100" step="0.01" value="' + (rate ? escapeHtml(rate) : '') + '" oninput="docCalc()" style="' + sm + ';width:90px;text-align:right">')
+    +   '</div>'
+    +   row('ฐานคำนวณ (ก่อน VAT)', '<input id="doc-wht-base" type="number" min="0" step="0.01" value="' + (base != null ? base.toFixed(2) : '') + '" data-auto="' + (base != null ? '0' : '1') + '" oninput="this.dataset.auto=\'0\';docCalc()" style="' + sm + ';width:120px;text-align:right">')
+    +   row('ยอดหัก ณ ที่จ่าย', '<span id="doc-wht-amt" class="mono" style="color:var(--amber)">-0.00</span>')
+    +   '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);margin-top:4px;font-weight:700"><span>ยอดชำระสุทธิ</span><span id="doc-net" class="mono">0.00</span></div>'
+    + '</div></div>';
+}
+
+function docWhtRateChanged() {
+  const sel = gvv('doc-wht-rate');
+  const detail = document.getElementById('doc-wht-detail');
+  const customRow = document.getElementById('doc-wht-custom-row');
+  if (detail) detail.style.display = sel === '' ? 'none' : '';
+  if (customRow) customRow.style.display = sel === 'custom' ? '' : 'none';
+  if (sel !== 'custom' && sel !== '') setV('doc-wht-custom', sel);
+  docCalc();
+}
+
+// Read the WHT inputs and work out base/amount. `after` = pre-VAT amount, used
+// as the base whenever the user hasn't overridden it (data-auto="1").
+function docWhtCalc(after) {
+  const sel = document.getElementById('doc-wht-rate');
+  if (!sel || sel.value === '') return { rate: 0, base: 0, amount: 0 };
+  const rate = parseFloat(sel.value === 'custom' ? gvv('doc-wht-custom') : sel.value) || 0;
+  const baseEl = document.getElementById('doc-wht-base');
+  let base = after;
+  if (baseEl) {
+    if (baseEl.dataset.auto !== '0') baseEl.value = after.toFixed(2);
+    base = parseFloat(baseEl.value) || 0;
+  }
+  if (!(rate > 0) || !(base > 0)) return { rate: rate, base: base, amount: 0 };
+  return { rate: rate, base: base, amount: Math.round(base * rate) / 100 };
+}
+
 function docCalc() {
   let sub = 0;
   document.querySelectorAll('#doc-items-body tr').forEach(tr => {
@@ -4587,6 +4712,12 @@ function docCalc() {
   document.getElementById('doc-after').textContent = fmtNum(after);
   document.getElementById('doc-vat-amt').textContent = fmtNum(vat);
   document.getElementById('doc-total').textContent = fmtNum(grand);
+  const wht = docWhtCalc(after);
+  const whtEl = document.getElementById('doc-wht-amt');
+  if (whtEl) {
+    whtEl.textContent = '-' + fmtNum(wht.amount);
+    document.getElementById('doc-net').textContent = fmtNum(grand - wht.amount);
+  }
 }
 
 function getDocItems() {
@@ -4611,6 +4742,7 @@ function buildDocBody() {
   let vat = 0, grand = after;
   if (vatType === 'exclusive') { vat = after * 0.07; grand = after + vat; }
   else if (vatType === 'inclusive') { vat = after - (after / 1.07); grand = after; }
+  const wht = docWhtCalc(after);
   return {
     id: docState.editingId || undefined,
     doc_type: docState.type,
@@ -4632,6 +4764,11 @@ function buildDocBody() {
     vat_type: vatType,
     vat_amount: vat.toFixed(2),
     total: grand.toFixed(2),
+    // Gross total above stays untouched — WHT is a settlement deduction, the
+    // VAT and the revenue are still recognised in full.
+    wht_rate: wht.amount > 0 ? wht.rate : '',
+    wht_base: wht.amount > 0 ? wht.base.toFixed(2) : '',
+    wht_amount: wht.amount > 0 ? wht.amount.toFixed(2) : '',
     status: gvv('doc-status') || 'draft',
     items: items,
   };
@@ -4701,6 +4838,8 @@ function docInnerHTML(d) {
   if (!rows) rows = '<tr><td colspan="5" style="padding:14px;text-align:center;color:#bbb">ไม่มีรายการ</td></tr>';
   const hasVat = (d.vat_type && d.vat_type !== 'none');
   const disc = parseFloat(d.discount) || 0;
+  const wht  = parseFloat(d.wht_amount) || 0;
+  const net  = (parseFloat(d.total) || 0) - wht;
   // Whole doc sits in a table so the <thead> (VOID banner + company header)
   // repeats at the top of every printed page — the only cross-browser way to
   // get a running header. See .doc-runner CSS in docPrint().
@@ -4755,8 +4894,17 @@ function docInnerHTML(d) {
     + (d.vat_type === 'exclusive' ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">ภาษีมูลค่าเพิ่ม 7%</span><span>' + fmtNum(d.vat_amount) + '</span></div>' : '')
     + '<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #ddd;margin-top:4px;font-weight:700;font-size:14px;color:#B71C1C"><span>ยอดรวมทั้งสิ้น</span><span>' + fmtNum(d.total) + '</span></div>'
     + (d.vat_type === 'inclusive' ? '<div style="text-align:right;font-size:10px;color:#999;margin-top:1px">(ราคารวมภาษีมูลค่าเพิ่ม 7% แล้ว = ' + fmtNum(d.vat_amount) + ')</div>' : '')
-    + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(parseFloat(d.total) || 0)) + ')</div>'
+    // หัก ณ ที่จ่าย: shown below the (gross) grand total — the payer deducts it
+    // and remits it, so the cash actually transferred is the net line.
+    + (wht > 0
+        ? '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:#888">หัก ณ ที่จ่าย ' + escapeHtml(d.wht_rate) + '%</span><span>-' + fmtNum(wht) + '</span></div>'
+          + '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #ddd;font-weight:700;font-size:13px"><span>ยอดชำระสุทธิ</span><span>' + fmtNum(net) + '</span></div>'
+        : '')
+    + '<div style="text-align:right;font-size:11px;color:#888;margin-top:2px">(' + escapeHtml(numToThaiText(wht > 0 ? net : (parseFloat(d.total) || 0))) + ')</div>'
     + '</div>'
+    + (wht > 0
+        ? '<div style="clear:both;margin-top:10px;font-size:10.5px;color:#888">* ภาษีหัก ณ ที่จ่าย ' + escapeHtml(d.wht_rate) + '% คำนวณจากฐาน ' + fmtNum(d.wht_base) + ' บาท — กรุณาออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) ให้ด้วย</div>'
+        : '')
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
     // Bank / payment details — shown on money-collecting docs, not on purchase orders
     + ((d.doc_type !== 'purchaseorder' && (co.bank_name || co.bank_account)) ?
