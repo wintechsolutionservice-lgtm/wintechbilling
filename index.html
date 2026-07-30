@@ -3524,7 +3524,7 @@ function demoSeed() {
       qt_prefix: 'WT', qt_running: 2, qt_running_month: ym,
       doc_invoice_prefix: 'INV', doc_taxinvoice_prefix: 'TAX', doc_billing_prefix: 'BILL', doc_receipt_prefix: 'REC', doc_purchaseorder_prefix: 'PO',
       doc_invoice_running: 1, doc_invoice_month: '' + be,
-      doc_taxinvoice_running: 1, doc_taxinvoice_month: '' + be,
+      doc_taxinvoice_running: 2, doc_taxinvoice_month: '' + be,
     },
     customers: [
       { id: 'C1', name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', address_th: '88 ถนนพระราม 9 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพฯ 10310', tax_id: '0105551000011', branch_type: 'หน่วยงานใหญ่', branch_number: '', contact: 'คุณสมชาย ใจดี', phone: '02-111-2222', email: 'contact@greentech.co.th', created_at: _nowIso() },
@@ -3543,9 +3543,15 @@ function demoSeed() {
         items: [ { description: 'ออกแบบและพัฒนาเว็บไซต์องค์กร', qty: 1, unit: 'งาน', unit_price: 80000, discount_pct: 0, amount: 80000, seq: 1 }, { description: 'ระบบจัดการเนื้อหา (CMS)', qty: 1, unit: 'ระบบ', unit_price: 40000, discount_pct: 0, amount: 40000, seq: 2 } ] },
       { id: 'D2', doc_type: 'taxinvoice', doc_number: 'TAX-' + be + '-0001', doc_date: day(-3), due_date: day(12), ref_no: '', customer_id: 'C3', customer_name_th: 'บริษัท บลูโอเชียน เทรดดิ้ง จำกัด', customer_tax_id: '0105553000033', customer_address_th: '12 ถนนสุขุมวิท 24 แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110', customer_phone: '02-555-6666', payment_terms: 'ชำระภายใน 15 วัน', subject: 'ค่าที่ปรึกษาโครงการ', subtotal: 300000, discount: 0, after_discount: 300000, vat_type: 'exclusive', vat_amount: 21000, total: 321000, note: '', status: 'sent', billed_in: '', created_at: _nowIso(), updated_at: _nowIso(),
         items: [ { description: 'ค่าที่ปรึกษาโครงการ (รายเดือน)', qty: 3, unit: 'เดือน', unit_price: 100000, discount_pct: 0, amount: 300000, seq: 1 } ] },
+      // ปิดยอดครบแล้วแบบมีหัก ณ ที่จ่าย 3%: 200,000 + VAT 14,000 = 214,000
+      // ลูกค้าหักไว้ 6,000 (จากฐานก่อน VAT) แล้วโอนจริง 208,000
+      { id: 'D3', doc_type: 'taxinvoice', doc_number: 'TAX-' + be + '-0002', doc_date: day(-10), due_date: day(5), ref_no: '', customer_id: 'C2', customer_name_th: 'ห้างหุ้นส่วนจำกัด สยามการช่าง', customer_tax_id: '0103552000022', customer_address_th: '45/7 ถนนเจริญกรุง แขวงบางรัก เขตบางรัก กรุงเทพฯ 10500', customer_phone: '02-333-4444', payment_terms: 'ชำระภายใน 15 วัน', subject: 'ค่าบริการดูแลระบบรายปี', subtotal: 200000, discount: 0, after_discount: 200000, vat_type: 'exclusive', vat_amount: 14000, total: 214000, wht_rate: 3, wht_base: '200000.00', wht_amount: '6000.00', note: '', status: 'approved', billed_in: '', created_at: _nowIso(), updated_at: _nowIso(),
+        items: [ { description: 'ค่าบริการดูแลระบบและบำรุงรักษา (12 เดือน)', qty: 12, unit: 'เดือน', unit_price: 15000, discount_pct: 0, amount: 180000, seq: 1 }, { description: 'ค่าบริการติดตั้งและตั้งค่าเริ่มต้น', qty: 1, unit: 'งาน', unit_price: 20000, discount_pct: 0, amount: 20000, seq: 2 } ] },
     ],
     payments: [
       { id: 'PM1', doc_id: 'D1', doc_type: 'invoice', doc_number: 'INV-' + be + '-0001', customer_name_th: 'บริษัท กรีนเทค โซลูชั่น จำกัด', pay_date: day(-2), amount: 50000, method: 'โอนเงิน', note: 'มัดจำงวดแรก', created_at: _nowIso() },
+      { id: 'PM2', doc_id: 'D3', doc_type: 'taxinvoice', doc_number: 'TAX-' + be + '-0002', customer_name_th: 'ห้างหุ้นส่วนจำกัด สยามการช่าง', pay_date: day(-4), amount: 208000, method: 'โอนเงิน', note: 'โอนสุทธิหลังหัก ณ ที่จ่าย', created_at: _nowIso() },
+      { id: 'PM3', doc_id: 'D3', doc_type: 'taxinvoice', doc_number: 'TAX-' + be + '-0002', customer_name_th: 'ห้างหุ้นส่วนจำกัด สยามการช่าง', pay_date: day(-4), amount: 6000, method: WHT_METHOD, note: 'หัก ณ ที่จ่าย 3% จากฐาน 200,000.00', created_at: _nowIso() },
     ],
     assets: {},
   };
