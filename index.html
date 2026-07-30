@@ -3725,12 +3725,15 @@ async function renderOverview() {
   docs.forEach(d => { docById[d.id] = d; });
   const pays = await api('getPayments') || [];
   const paidByDoc = {};
-  let received = 0;
+  let receivedCash = 0, receivedWht = 0;
   pays.forEach(p => {
     if (!docById[p.doc_id]) return;      // orphan / voided → skip
     const amt = num(p.amount);
+    // WHT settles the document but never reaches the bank — the customer keeps
+    // it and remits it. Counting it as cash in would overstate money received.
     paidByDoc[p.doc_id] = (paidByDoc[p.doc_id] || 0) + amt;
-    received += amt;
+    if (String(p.method) === WHT_METHOD) receivedWht += amt;
+    else receivedCash += amt;
   });
   // Outstanding = unpaid balance on receivable documents (total − paid).
   const outstanding = docs
@@ -3773,7 +3776,9 @@ async function renderOverview() {
     // KPI row
     + '<div class="stats-row">'
     + kpi('ค้างชำระ', fmtNum(outstanding), 'ยอดคงเหลือของแจ้งหนี้/กำกับภาษี/วางบิล (บาท)', true)
-    + kpi('รับชำระแล้ว', fmtNum(received), 'รวมเงินที่รับชำระจริง (บาท)', false, 'var(--accent2)')
+    + kpi('รับชำระแล้ว', fmtNum(receivedCash),
+        'เงินเข้าจริง (บาท)' + (receivedWht > 0 ? ' · หัก ณ ที่จ่ายอีก ' + fmtNum(receivedWht) : ''),
+        false, 'var(--accent2)')
     + kpi('เอกสารเดือนนี้', String(monthCount), fmtNum(monthSumTotal) + ' บาท', false, 'var(--amber)')
     + kpi('ใบเสนอราคา', String(qCount), fmtNum(qSum) + ' บาท', false)
     + '</div>'
