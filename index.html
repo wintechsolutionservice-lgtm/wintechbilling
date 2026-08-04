@@ -983,6 +983,9 @@ input.dpick {
 .doc-runner > tbody > tr > td {
   padding: 0; border: none; background: none; vertical-align: top;
 }
+/* Thai vowel+tone stacks overflow a `normal` line box; in a repeated running
+   header that overflow gets painted at the page break. Keep the ink inside. */
+.doc-runner > thead > tr > td { line-height: 1.5; }
 
 @media print {
   body > *:not(#print-target) { display: none !important; }
@@ -1617,6 +1620,23 @@ input.dpick {
           <input type="text" id="cfg-doc_purchaseorder_prefix" placeholder="PO" maxlength="6" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
         </div>
       </div>
+      <div class="section-title" style="margin-top:18px;font-size:14px">รูปแบบการวางบิล</div>
+      <div class="grid-2" style="margin-top:8px">
+        <div class="field">
+          <label>ใบวางบิลสร้างจาก</label>
+          <select id="cfg-doc_billing_source" onchange="updateBillingSourceHint()"
+            style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;outline:none">
+            <option value="taxinvoice">ใบกำกับภาษี — ธุรกิจขายสินค้า</option>
+            <option value="invoice">ใบแจ้งหนี้ — ธุรกิจให้บริการ</option>
+            <option value="both">ทั้งสองอย่าง</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div id="billing-source-hint" style="font-size:12px;color:var(--text3);line-height:1.7"></div>
+        </div>
+      </div>
+
       <div class="section-title" style="margin-top:18px;font-size:14px">เลขล่าสุด (ปีนี้) — ตั้งเพื่อเริ่มนับต่อจากเลขที่มีอยู่</div>
       <div class="grid-4" style="margin-top:8px">
         <div class="field">
@@ -2064,6 +2084,8 @@ async function loadConfig() {
     const zone = document.getElementById('logo-preview-zone');
     if (zone) showLogoThumb(CONFIG.company_logo);
   }
+  setV('cfg-doc_billing_source', billingSource());
+  updateBillingSourceHint();
   updateHeaderPreview();
   updateQtNumberExample();
   // Show each document type's current running counter as a placeholder hint.
@@ -2687,6 +2709,13 @@ function renderPreview(qt) {
       .doc-runner { width:100%; border-collapse:collapse; }
       .doc-runner > thead > tr > td,
       .doc-runner > tbody > tr > td { padding:0; border:none; vertical-align:top; }
+      /* Thai stacks a vowel and a tone mark above the letter (ชั่ = ช + ั + ่),
+         which overflows the default line box. In a repeated running header that
+         overflowing ink lands at the page break instead of on the next page —
+         the marks end up stranded at the foot of the previous page. Give the
+         box room for the full stack and there is nothing to spill.
+         (No backticks in here — this whole block sits in a template literal.) */
+      .doc-runner > thead > tr > td { line-height:1.5; }
     </style>
 
     <table class="doc-runner"><thead><tr><td>
@@ -2696,7 +2725,9 @@ function renderPreview(qt) {
       <div style="display:flex;align-items:center;gap:14px">
         ${(cfg.company_logo||'') ? `<img src="${cfg.company_logo}" style="max-height:${cfg.logo_height||56}px;max-width:90px;object-fit:contain;flex-shrink:0">` : ''}
         <div>
-          <div style="font-size:15px;font-weight:800;color:#B71C1C;line-height:1.3">${cfg.company_name_th||''}</div>
+          <!-- 1.5, not 1.3: the company name is Thai and may stack a vowel over
+               a tone mark (โซลูชั่น), which 1.3 is too tight to contain. -->
+          <div style="font-size:15px;font-weight:800;color:#B71C1C;line-height:1.5">${cfg.company_name_th||''}</div>
           <div style="font-size:11px;color:#666;line-height:1.3">${cfg.company_name_en||''}</div>
           <div style="font-size:11px;color:#888;margin-top:2px;line-height:1.5">${(cfg.company_address_th||'').replace(/\n/g,' ')}</div>
           <div style="font-size:11px;color:#888;line-height:1.5">
@@ -2884,6 +2915,9 @@ function printDoc() {
       * { box-sizing:border-box; margin:0; padding:0; }
       a, a:link, a:visited { color:inherit !important; text-decoration:none !important; }
       body { font-family:'Sarabun',sans-serif; font-size:13px; background:#fff; }
+      /* Room for Thai vowel+tone stacks in the repeated running header, so none
+         of its ink spills onto the bottom of the preceding page. */
+      .doc-runner > thead > tr > td { line-height:1.5; }
 
       @page { size:A4; margin:12mm 12mm 16mm; }
 
@@ -3189,6 +3223,7 @@ async function saveSettings() {
       'bank_name','bank_account','bank_account_name','bank_account_type','bank_branch',
       'qt_prefix','qt_running',
       'doc_invoice_prefix','doc_taxinvoice_prefix','doc_billing_prefix','doc_receipt_prefix','doc_purchaseorder_prefix',
+      'doc_billing_source',
       'ui_theme',
     ];
     const updates = { logo_height: logoH };
@@ -3454,15 +3489,25 @@ async function demoApi(action, params, body) {
       case 'voidDocument': {
         const doc = db.documents.find(x => String(x.id) === String(a.id)); if (!doc) throw new Error('ไม่พบเอกสาร');
         if (doc.status === 'voided') return { id: a.id, status: 'voided' };
-        if (doc.doc_type === 'taxinvoice' && doc.billed_in) throw new Error('ใบกำกับภาษีนี้อยู่ในใบวางบิลแล้ว กรุณายกเลิก/ลบใบวางบิลก่อน');
+        if (doc.billed_in && doc.doc_type !== 'billing') throw new Error(((DOC_TYPES[doc.doc_type]||{}).th || 'เอกสาร') + 'นี้อยู่ในใบวางบิลแล้ว กรุณายกเลิก/ลบใบวางบิลก่อน');
         doc.status = 'voided'; doc.voided_at = _nowIso(); doc.void_reason = a.reason || ''; doc.updated_at = _nowIso();
         if (doc.doc_type === 'billing') db.documents.forEach(x => { if (String(x.billed_in) === String(a.id)) x.billed_in = ''; });
         demoSave(); return { id: a.id, status: 'voided' };
       }
       case 'saveBillingNote': {
         const ids = Array.isArray(a.member_ids) ? a.member_ids : [];
-        if (!ids.length) throw new Error('กรุณาเลือกใบกำกับภาษีอย่างน้อย 1 ใบ');
-        ids.forEach(id => { const d = db.documents.find(x => String(x.id) === String(id)); if (!d) throw new Error('ไม่พบเอกสาร: ' + id); if (d.status === 'voided') throw new Error('ใบกำกับภาษี ' + (d.doc_number || id) + ' ถูกยกเลิกแล้ว'); if (d.billed_in) throw new Error('ใบกำกับภาษี ' + (d.doc_number || id) + ' ถูกวางบิลไปแล้ว'); });
+        if (!ids.length) throw new Error('กรุณาเลือกเอกสารอย่างน้อย 1 ใบ');
+        ids.forEach(id => {
+          const d = db.documents.find(x => String(x.id) === String(id)); if (!d) throw new Error('ไม่พบเอกสาร: ' + id);
+          const lb = (DOC_TYPES[d.doc_type] || {}).th || 'เอกสาร';
+          if (d.doc_type !== 'invoice' && d.doc_type !== 'taxinvoice') throw new Error('วางบิลจาก' + lb + 'ไม่ได้');
+          if (d.status === 'voided') throw new Error(lb + ' ' + (d.doc_number || id) + ' ถูกยกเลิกแล้ว');
+          if (d.billed_in) throw new Error(lb + ' ' + (d.doc_number || id) + ' ถูกวางบิลไปแล้ว');
+          if (d.doc_type === 'invoice') {
+            const der = db.documents.find(x => String(x.source_doc_id) === String(id) && x.doc_type === 'taxinvoice' && x.status !== 'voided');
+            if (der) throw new Error('ใบแจ้งหนี้ ' + (d.doc_number || id) + ' ออกใบกำกับภาษี ' + (der.doc_number || '') + ' แล้ว — กรุณาวางบิลจากใบกำกับภาษีแทน');
+          }
+        });
         const saved = demoCreateDoc(Object.assign({}, a, { doc_type: 'billing' }));
         ids.forEach(id => { const d = db.documents.find(x => String(x.id) === String(id)); if (d) d.billed_in = saved.id; });
         demoSave(); return { id: saved.id, doc_number: saved.doc_number, members: ids.length };
@@ -3696,6 +3741,36 @@ async function showOverview(el) {
   await renderOverview();
 }
 
+// The same debt can be represented by a chain of documents: an invoice, the tax
+// invoice raised against it, and the billing note that collects either of them.
+// Only the last document in the chain is the live receivable — counting the
+// earlier ones again would double the outstanding balance. Returns:
+//   supersededBy — doc id → the document that replaced it (so it can be skipped)
+//   paid         — doc id → payments on it AND on everything it superseded,
+//                  since money recorded against the invoice still settles the
+//                  billing note that now carries it.
+// `docs` must already exclude voided documents.
+function settlementChain(docs, paidByDoc) {
+  const byId = {};
+  docs.forEach(d => { byId[d.id] = d; });
+  const supersededBy = {};
+  docs.forEach(d => {
+    // Both links can apply to the same document at once — a tax invoice can be
+    // superseded by its billing note while itself superseding its invoice.
+    if (d.billed_in && byId[d.billed_in]) supersededBy[d.id] = d.billed_in;
+    if (d.doc_type === 'taxinvoice' && d.source_doc_id && byId[d.source_doc_id]) supersededBy[d.source_doc_id] = d.id;
+  });
+  const paid = {};
+  docs.forEach(d => {
+    // Walk to the end of the chain. The hop cap is a guard against a cycle in
+    // the data (a corrupt billed_in) hanging the dashboard.
+    let head = d.id, hops = 0;
+    while (supersededBy[head] && hops++ < 10) head = supersededBy[head];
+    paid[head] = (paid[head] || 0) + ((paidByDoc || {})[d.id] || 0);
+  });
+  return { supersededBy: supersededBy, paid: paid };
+}
+
 async function renderOverview() {
   const root = document.getElementById('overview-root');
   root.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">กำลังโหลดสรุปข้อมูล...</div>';
@@ -3748,10 +3823,12 @@ async function renderOverview() {
     receivedCash += num(d.total) - num(d.wht_amount);
     receivedWht  += num(d.wht_amount);
   });
-  // Outstanding = unpaid balance on receivable documents (total − paid).
+  // Outstanding = unpaid balance on receivable documents (total − paid), counted
+  // once per debt — see settlementChain().
+  const chain = settlementChain(docs, paidByDoc);
   const outstanding = docs
-    .filter(d => PAYABLE_TYPES[d.doc_type])
-    .reduce((s, d) => s + Math.max(0, num(d.total) - (paidByDoc[d.id] || 0)), 0);
+    .filter(d => PAYABLE_TYPES[d.doc_type] && !chain.supersededBy[d.id])
+    .reduce((s, d) => s + Math.max(0, num(d.total) - (chain.paid[d.id] || 0)), 0);
   const monthDocs = docs.filter(d => monthOf(d.doc_date) === ym);
   const monthCount = monthDocs.length;
   const monthSumTotal = monthDocs.reduce((s, d) => s + num(d.total), 0);
@@ -3948,6 +4025,7 @@ const WHT_METHOD = 'หัก ณ ที่จ่าย';
 const PAY_METHODS = ['เงินสด', 'โอนเงิน', 'เช็ค', 'บัตรเครดิต', WHT_METHOD, 'อื่นๆ'];
 // Withholding tax (หัก ณ ที่จ่าย) — money docs only, not purchase orders.
 const WHT_TYPES = { invoice: 1, taxinvoice: 1, billing: 1, receipt: 1 };
+
 const WHT_RATES = [
   { v: '1',  label: '1% ค่าขนส่ง' },
   { v: '2',  label: '2% ค่าโฆษณา' },
@@ -3955,6 +4033,37 @@ const WHT_RATES = [
   { v: '5',  label: '5% ค่าเช่า' },
   { v: '10', label: '10% วิชาชีพอิสระ / เงินปันผล' },
 ];
+// ── BILLING SOURCE (company setting) ──────────────────────────────────────
+// Which document a billing note is raised against. The two are not a matter of
+// taste — they follow the VAT tax point (จุดความรับผิดในการเสีย VAT):
+//   ขายสินค้า (ป.รัษฎากร ม.78)   → tax invoice is due when the goods are
+//        delivered, so the tax invoice already exists and is what gets billed.
+//   ให้บริการ (ป.รัษฎากร ม.78/1) → tax invoice is due when payment is received,
+//        so billing runs on the invoice and the tax invoice follows the money.
+const BILLING_SOURCE_HINTS = {
+  taxinvoice: 'ออกใบกำกับภาษีตอนส่งมอบสินค้า แล้วรวบมาวางบิล (ป.รัษฎากร ม.78)',
+  invoice:    'วางบิลจากใบแจ้งหนี้ก่อน เมื่อรับเงินแล้วจึงออกใบกำกับภาษี (ป.รัษฎากร ม.78/1)',
+  both:       'เลือกได้ทั้งใบแจ้งหนี้และใบกำกับภาษี — เหมาะกับกิจการที่มีทั้งสินค้าและบริการ',
+};
+
+function billingSource() {
+  const v = (CONFIG && CONFIG.doc_billing_source) || 'taxinvoice';
+  return BILLING_SOURCE_HINTS[v] ? v : 'taxinvoice';
+}
+
+// Document types eligible to sit on a billing note, per the company setting.
+function billingSourceTypes() {
+  const s = billingSource();
+  return s === 'both' ? ['invoice', 'taxinvoice'] : [s];
+}
+
+function updateBillingSourceHint() {
+  const el = document.getElementById('billing-source-hint');
+  if (!el) return;
+  const v = gvv('cfg-doc_billing_source') || billingSource();
+  el.textContent = BILLING_SOURCE_HINTS[v] || '';
+}
+
 const docState = { type: null, list: [], editingId: null, payMap: {} };
 let previewedQtId = null; // quotation currently shown in the preview page (for convert)
 
@@ -4105,6 +4214,56 @@ async function createReceiptFromDoc(id) {
   toast('🧾 เตรียมใบเสร็จรับเงิน ' + fmtNum(paid) + ' บาท จาก ' + (d.doc_number || '') + ' — ตรวจแล้วกดบันทึก');
 }
 
+// Issue the tax invoice for an invoice — the service-business flow, where the
+// tax point is the moment the money arrives (ป.รัษฎากร ม.78/1), so the tax
+// invoice is raised after payment rather than at the point of billing.
+// Carries the invoice's own lines and VAT (NOT the invoice as a single line):
+// the tax invoice must show the supply it taxes, and its VAT has to trace back
+// to those lines. Defaults to the combined ใบกำกับภาษี/ใบเสร็จรับเงิน form when
+// the money is already in — that single sheet is what the customer expects.
+async function createTaxInvoiceFromDoc(id) {
+  loading(true);
+  const d = await api('getDocument', { id });
+  loading(false);
+  if (!d) return;
+  if (String(d.doc_type) !== 'invoice') { toast('ออกใบกำกับภาษีได้จากใบแจ้งหนี้เท่านั้น', 'error'); return; }
+  if (String(d.status) === 'voided') { toast('ใบแจ้งหนี้ถูกยกเลิกแล้ว', 'error'); return; }
+  const paid = (d.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  const fullyPaid = paid > 0 && paid >= (parseFloat(d.total) || 0) - 0.005;
+  const lastPay = (d.payments || [])[(d.payments || []).length - 1];
+
+  docState.type = 'taxinvoice';
+  docState.editingId = null;
+  showPage('doc', null);
+  highlightDocNav('taxinvoice');
+  buildDocForm({
+    doc_number: '',
+    // Dated the day of payment — that is the day the VAT liability arises.
+    doc_date: (fullyPaid && lastPay && lastPay.pay_date) ? isoToDisplay(lastPay.pay_date) : isoToDisplay(new Date()),
+    due_date: fullyPaid ? '' : (d.due_date ? formatDate(d.due_date) : ''),
+    ref_no: d.doc_number || '',
+    source_doc_id: d.id,
+    combined_receipt: fullyPaid ? 'Y' : '',
+    customer_name_th: d.customer_name_th,
+    customer_tax_id: d.customer_tax_id,
+    customer_address_th: d.customer_address_th,
+    customer_phone: d.customer_phone,
+    customer_email: d.customer_email,
+    subject: d.subject,
+    payment_terms: d.payment_terms,
+    discount: d.discount,
+    vat_type: d.vat_type,
+    wht_rate: d.wht_rate || '',
+    items: (d.items || []).map(it => ({
+      description: it.description, qty: it.qty, unit: it.unit,
+      unit_price: it.unit_price, amount: it.amount,
+    })),
+  });
+  closeSidebar();
+  toast('🧾 เตรียมใบกำกับภาษีจากใบแจ้งหนี้ ' + (d.doc_number || '')
+    + (fullyPaid ? ' (ออกเป็นใบกำกับภาษี/ใบเสร็จรับเงิน)' : '') + ' — ตรวจแล้วกดบันทึก');
+}
+
 function gvv(id) { const e = document.getElementById(id); return e ? e.value : ''; }
 function setV(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
 function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return isoToDisplay(d); }
@@ -4128,6 +4287,15 @@ async function loadDocList(type) {
   const map = {};
   (pays || []).forEach(p => { map[p.doc_id] = (map[p.doc_id] || 0) + (parseFloat(p.amount) || 0); });
   docState.payMap = map;
+  // On the invoice list, note which invoices already have their tax invoice, so
+  // the "ออกใบกำกับภาษี" button turns into a badge instead of issuing a second one.
+  docState.taxOf = {};
+  if (type === 'invoice') {
+    const tax = await api('getDocuments', { type: 'taxinvoice' }) || [];
+    tax.forEach(t => {
+      if (t.source_doc_id && t.status !== 'voided') docState.taxOf[t.source_doc_id] = t.doc_number || '✓';
+    });
+  }
   loading(false);
 }
 
@@ -4155,7 +4323,7 @@ function renderDocList() {
     +   '<option value="">สถานะทั้งหมด</option><option value="draft">Draft</option><option value="sent">ส่งแล้ว</option><option value="approved">อนุมัติ/ชำระแล้ว</option><option value="voided">ยกเลิก</option><option value="rejected">ปฏิเสธ</option>'
     + '</select>'
     + (docState.type === 'billing'
-        ? '<button class="btn btn-primary" onclick="openBillingBuilder()">📋 สร้างจากใบกำกับภาษี</button>'
+        ? '<button class="btn btn-primary" onclick="openBillingBuilder()">📋 สร้างจาก' + billingSourceTypes().map(t => DOC_TYPES[t].th).join(' / ') + '</button>'
           + '<button class="btn btn-secondary" onclick="newDoc()">➕ สร้างเปล่า</button>'
         : '<button class="btn btn-primary" onclick="newDoc()">➕ สร้าง' + cfg.th + '</button>')
     + '</div>'
@@ -4188,14 +4356,22 @@ function renderDocRows() {
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="รับชำระ" onclick="openPaymentModal(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">💰</button>'
       : '';
     // Receipt shortcut: only once money has actually been received.
-    const receiptBtn = (PAYABLE_TYPES[d.doc_type] && paidNow > 0)
-      ? '<button class="btn btn-secondary btn-sm btn-icon" title="ออกใบเสร็จ" onclick="createReceiptFromDoc(\'' + d.id + '\')">🧾</button>'
+    // …but not on a tax invoice that already prints as its own receipt.
+    const receiptBtn = (PAYABLE_TYPES[d.doc_type] && paidNow > 0 && String(d.combined_receipt) !== 'Y')
+      ? '<button class="btn btn-secondary btn-sm btn-icon" title="ออกใบเสร็จ" onclick="createReceiptFromDoc(\'' + d.id + '\')">💵</button>'
       : '';
+    // Tax invoice shortcut — invoices only, and only once, since an invoice is
+    // one supply and may be taxed by exactly one tax invoice.
+    const taxNo = docState.taxOf ? docState.taxOf[d.id] : null;
+    const taxBtn = d.doc_type !== 'invoice' ? ''
+      : taxNo
+        ? '<span class="badge badge-approved" style="white-space:nowrap" title="ออกใบกำกับภาษีแล้ว">🧾 ' + escapeHtml(taxNo) + '</span>'
+        : '<button class="btn btn-secondary btn-sm btn-icon" title="ออกใบกำกับภาษีจากใบแจ้งหนี้นี้" onclick="createTaxInvoiceFromDoc(\'' + d.id + '\')">🧾</button>';
     const actions = voided
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
       : '<button class="btn btn-secondary btn-sm btn-icon" title="แก้ไข" onclick="editDoc(\'' + d.id + '\')">✏️</button>'
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ดู/พิมพ์" onclick="previewDoc(\'' + d.id + '\')">👁</button>'
-        + payBtn + receiptBtn
+        + payBtn + taxBtn + receiptBtn
         + '<button class="btn btn-secondary btn-sm btn-icon" title="ยกเลิก (เก็บเลขไว้)" onclick="voidDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🚫</button>'
         + (st === 'draft'
             ? '<button class="btn btn-danger btn-sm btn-icon" title="ลบ (ร่างที่ยังไม่ออก)" onclick="deleteDoc(\'' + d.id + '\',\'' + escapeHtml(d.doc_number) + '\')">🗑</button>'
@@ -4215,20 +4391,31 @@ function renderDocRows() {
   }).join('');
 }
 
-// ── BILLING NOTE BUILDER (select tax invoices → one billing note) ─────────
-let billingPool = [];   // unbilled tax invoices available to place on a billing note
+// ── BILLING NOTE BUILDER (select invoices / tax invoices → one billing note) ─
+let billingPool = [];   // unbilled documents available to place on a billing note
 
 async function openBillingBuilder() {
+  const types = billingSourceTypes();
+  const srcLabel = types.map(t => DOC_TYPES[t].th).join(' / ');
   loading(true);
-  const tax = await api('getDocuments', { type: 'taxinvoice' }) || [];
+  const lists = await Promise.all(types.map(t => api('getDocuments', { type: t })));
+  // In "both" mode an invoice that already has a tax invoice must drop out of
+  // the pool — its tax invoice is the billable document now, and offering both
+  // would put the same money on two billing notes.
+  const derivedFrom = {};
+  if (types.length > 1) {
+    (lists[types.indexOf('taxinvoice')] || []).forEach(d => {
+      if (d.source_doc_id && d.status !== 'voided') derivedFrom[d.source_doc_id] = 1;
+    });
+  }
   loading(false);
-  // Only tax invoices not already placed on a billing note
-  billingPool = tax.filter(d => !d.billed_in && d.status !== 'voided');
+  billingPool = lists.flatMap(l => l || [])
+    .filter(d => !d.billed_in && d.status !== 'voided' && !derivedFrom[d.id]);
   if (!billingPool.length) {
-    toast('ไม่มีใบกำกับภาษีที่ยังไม่ได้วางบิล', 'error');
+    toast('ไม่มี' + srcLabel + 'ที่ยังไม่ได้วางบิล', 'error');
     return;
   }
-  // Distinct customers among the unbilled tax invoices
+  // Distinct customers among the unbilled documents
   const custs = [...new Set(billingPool.map(d => d.customer_name_th || '(ไม่ระบุชื่อ)'))].sort();
   const custOpts = custs.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
 
@@ -4237,11 +4424,11 @@ async function openBillingBuilder() {
   wrap.id = 'billing-builder';
   wrap.innerHTML =
     '<div class="modal" style="width:640px;max-width:96vw">'
-    + '<h2>📋 สร้างใบวางบิลจากใบกำกับภาษี</h2>'
+    + '<h2>📋 สร้างใบวางบิลจาก' + escapeHtml(srcLabel) + '</h2>'
     + '<div class="field" style="margin-bottom:12px"><label>ลูกค้า</label>'
     +   '<select id="bb-cust" onchange="renderBillingPool()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">' + custOpts + '</select>'
     + '</div>'
-    + '<div style="font-size:13px;color:var(--text3);margin-bottom:6px">เลือกใบกำกับภาษีที่ต้องการวางบิล:</div>'
+    + '<div style="font-size:13px;color:var(--text3);margin-bottom:6px">เลือก' + escapeHtml(srcLabel) + 'ที่ต้องการวางบิล:</div>'
     + '<div id="bb-list" style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:15px">'
     +   '<span style="color:var(--text3)">เลือก <strong id="bb-count">0</strong> ใบ</span>'
@@ -4265,13 +4452,17 @@ function renderBillingPool() {
   const rows = billingPool.filter(d => (d.customer_name_th || '(ไม่ระบุชื่อ)') === cust);
   const box = document.getElementById('bb-list');
   if (!box) return;
+  // The type badge only earns its space in "both" mode — with one source type
+  // every row would carry the same label.
+  const showType = billingSourceTypes().length > 1;
   box.innerHTML = rows.map(d =>
     '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer">'
     + '<input type="checkbox" class="bb-chk" value="' + d.id + '" data-amt="' + (parseFloat(d.total)||0) + '" onchange="billingCalc()">'
     + '<span style="flex:1"><span class="mono" style="font-weight:600">' + escapeHtml(d.doc_number || '') + '</span>'
+    +   (showType ? '<span style="font-size:10px;color:var(--text3);border:1px solid var(--border2);border-radius:9px;padding:1px 7px;margin-left:6px">' + escapeHtml((DOC_TYPES[d.doc_type]||{}).th || '') + '</span>' : '')
     +   '<span style="color:var(--text3);font-size:12px;margin-left:8px">' + formatDate(d.doc_date) + '</span></span>'
     + '<span class="mono">' + fmtNum(d.total) + '</span>'
-    + '</label>').join('') || '<div style="padding:16px;text-align:center;color:var(--text3)">ไม่มีใบกำกับภาษีของลูกค้ารายนี้</div>';
+    + '</label>').join('') || '<div style="padding:16px;text-align:center;color:var(--text3)">ไม่มีเอกสารของลูกค้ารายนี้</div>';
   billingCalc();
 }
 
@@ -4284,11 +4475,15 @@ function billingCalc() {
 
 async function submitBillingNote() {
   const chks = [...document.querySelectorAll('.bb-chk:checked')];
-  if (!chks.length) { toast('กรุณาเลือกใบกำกับภาษีอย่างน้อย 1 ใบ', 'error'); return; }
+  if (!chks.length) { toast('กรุณาเลือกเอกสารอย่างน้อย 1 ใบ', 'error'); return; }
   const ids = chks.map(c => c.value);
   const members = billingPool.filter(d => ids.includes(d.id));
   const first = members[0];
   const sum = members.reduce((s, d) => s + (parseFloat(d.total) || 0), 0);
+  const label = d => (DOC_TYPES[d.doc_type] || {}).th || 'เอกสาร';
+  // "ใบกำกับภาษี 3 ฉบับ" when they're all one kind, "เอกสาร 3 ฉบับ" when mixed
+  const kinds = [...new Set(members.map(label))];
+  const kindTh = kinds.length === 1 ? kinds[0] : 'เอกสาร';
 
   const body = {
     doc_type: 'billing',
@@ -4300,11 +4495,11 @@ async function submitBillingNote() {
     customer_address_th: first.customer_address_th || '',
     customer_phone: first.customer_phone || '',
     customer_email: first.customer_email || '',
-    subject: 'วางบิลใบกำกับภาษี ' + members.length + ' ฉบับ',
+    subject: 'วางบิล' + kindTh + ' ' + members.length + ' ฉบับ',
     payment_terms: first.payment_terms || '',
-    // One line per tax invoice
+    // One line per member document
     items: members.map(d => ({
-      description: 'ใบกำกับภาษี ' + (d.doc_number || '') + ' ลว. ' + formatDate(d.doc_date),
+      description: label(d) + ' ' + (d.doc_number || '') + ' ลว. ' + formatDate(d.doc_date),
       qty: 1, unit: '', unit_price: (parseFloat(d.total) || 0).toFixed(2),
       discount_pct: 0, amount: (parseFloat(d.total) || 0).toFixed(2)
     })),
@@ -4323,7 +4518,7 @@ async function submitBillingNote() {
   loading(false);
   if (!res) return;
   closeBillingBuilder();
-  toast('✅ สร้างใบวางบิล ' + (res.doc_number || '') + ' จากใบกำกับภาษี ' + res.members + ' ฉบับ');
+  toast('✅ สร้างใบวางบิล ' + (res.doc_number || '') + ' จาก' + kindTh + ' ' + res.members + ' ฉบับ');
   await loadDocList('billing');
   renderDocList();
 }
@@ -4346,20 +4541,24 @@ async function editDoc(id) {
     ref_no: d.ref_no, customer_name_th: d.customer_name_th, customer_tax_id: d.customer_tax_id,
     customer_address_th: d.customer_address_th, customer_phone: d.customer_phone, customer_email: d.customer_email,
     subject: d.subject, payment_terms: d.payment_terms, note: d.note,
-    discount: d.discount, vat_type: d.vat_type, status: d.status, items: d.items || []
+    discount: d.discount, vat_type: d.vat_type, status: d.status, items: d.items || [],
+    source_doc_id: d.source_doc_id, combined_receipt: d.combined_receipt,
+    // Without these the WHT block came back blank and re-saving silently
+    // dropped the deduction the document was issued with.
+    wht_rate: d.wht_rate, wht_base: d.wht_base,
   });
 }
 
 async function deleteDoc(id, num) {
   const d = docState.list.find(x => String(x.id) === String(id));
-  const isBilledTax = d && String(d.doc_type) === 'taxinvoice' && d.billed_in;
+  const isBilled = d && d.billed_in && String(d.doc_type) !== 'billing';
   const ok = await confirmModal({
     title: '🗑 ลบเอกสาร',
-    message: isBilledTax
-      ? 'ใบกำกับภาษี "' + num + '" ถูกวางบิลไปแล้ว\nการลบจะกระทบใบวางบิลที่อ้างอิงอยู่ และยกเลิกไม่ได้\nยืนยันโดยพิมพ์เลขที่เอกสารด้านล่าง'
+    message: isBilled
+      ? ((DOC_TYPES[d.doc_type] || {}).th || 'เอกสาร') + ' "' + num + '" ถูกวางบิลไปแล้ว\nการลบจะกระทบใบวางบิลที่อ้างอิงอยู่ และยกเลิกไม่ได้\nยืนยันโดยพิมพ์เลขที่เอกสารด้านล่าง'
       : 'ต้องการลบเอกสาร "' + num + '" ?\nการลบไม่สามารถยกเลิกได้',
     confirmText: 'ยืนยันลบ', danger: true,
-    requireText: isBilledTax ? num : '',
+    requireText: isBilled ? num : '',
   });
   if (!ok) return;
   loading(true);
@@ -4552,7 +4751,20 @@ function buildDocForm(doc) {
         ? '<div class="field"><label>ครบกำหนด</label><input id="doc-due" class="dpick" value="' + escapeHtml(doc.due_date || '') + '" placeholder="วว/ดด/ปปปป"></div>'
         : '<input type="hidden" id="doc-due" value="">')
     + '<div class="field"><label>อ้างอิง</label><input id="doc-ref" value="' + escapeHtml(doc.ref_no || '') + '" placeholder="เช่น เลขที่ใบเสนอราคา"></div>'
-    + '</div></div>'
+    + '</div>'
+    // The source document this one was raised from (invoice → tax invoice).
+    + '<input type="hidden" id="doc-source" value="' + escapeHtml(doc.source_doc_id || '') + '">'
+    // A tax invoice issued at the moment the money arrives is normally printed
+    // as one sheet serving as both documents — same number, same tax invoice
+    // series. Offered on tax invoices only.
+    + (docState.type === 'taxinvoice'
+        ? '<label style="display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;font-size:14px">'
+          + '<input type="checkbox" id="doc-combined"' + (doc.combined_receipt === 'Y' ? ' checked' : '') + '>'
+          + '<span>ออกเป็น <strong>ใบกำกับภาษี/ใบเสร็จรับเงิน</strong> ในฉบับเดียวกัน'
+          + '<span style="color:var(--text3);font-size:12px;display:block;margin-top:2px">ใช้เมื่อรับเงินแล้ว ณ วันที่ออกใบกำกับภาษี — ไม่ต้องออกใบเสร็จแยกอีกฉบับ</span></span>'
+          + '</label>'
+        : '')
+    + '</div>'
     // customer
     + '<div class="section">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">'
@@ -4785,6 +4997,8 @@ function buildDocBody() {
     customer_email: gvv('doc-cem'),
     subject: gvv('doc-subject'),
     payment_terms: gvv('doc-pay'),
+    source_doc_id: gvv('doc-source'),
+    combined_receipt: document.getElementById('doc-combined')?.checked ? 'Y' : '',
     note: gvv('doc-note'),
     subtotal: sub.toFixed(2),
     discount: disc.toFixed(2),
@@ -4853,6 +5067,14 @@ function previewDocData(d) {
 function docInnerHTML(d) {
   const cfg = DOC_TYPES[d.doc_type] || DOC_TYPES[docState.type] || {};
   const co = CONFIG || {};
+  // A tax invoice issued against money already received is printed as one sheet
+  // that is both documents. It keeps the tax invoice number series (VAT law
+  // requires the tax invoice to carry it) and drops the "pay us here" block —
+  // the money has arrived, so the sheet acknowledges receipt instead.
+  const combined = String(d.combined_receipt) === 'Y' && d.doc_type === 'taxinvoice';
+  const titleTh = combined ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน' : (cfg.th || '');
+  const titleEn = combined ? 'Tax Invoice / Receipt' : (cfg.en || '');
+  const showBank = PAYABLE_TYPES[d.doc_type] && !combined && (co.bank_name || co.bank_account);
   let rows = '';
   (d.items || []).forEach(it => {
     rows += '<tr>'
@@ -4877,7 +5099,14 @@ function docInnerHTML(d) {
           + (d.void_reason ? '<div style="font-size:11px;font-weight:500;letter-spacing:normal;margin-top:3px">เหตุผล: ' + escapeHtml(d.void_reason) + '</div>' : '')
           + '</div>'
         : '')
-    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B71C1C;padding-bottom:12px;margin-bottom:16px">'
+    // line-height is load-bearing, not cosmetic. Thai stacks a vowel and a tone
+    // mark above the letter (นี้ = น + ี + ้), which overflows a `normal` line
+    // box. When this header repeats as a running <thead>, Chrome paints that
+    // overflowing ink at the page break — so the marks of page 2's header
+    // appeared stranded at the foot of page 1. Giving the box room to hold the
+    // full stack leaves nothing to spill. Applies to every line below that
+    // doesn't set its own.
+    + '<div style="line-height:1.5;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #B71C1C;padding-bottom:12px;margin-bottom:16px">'
     + '<div style="max-width:64%;display:flex;align-items:flex-start;gap:10px">'
     + (co.company_logo ? '<img src="' + co.company_logo + '" style="max-height:' + (parseInt(co.logo_height) || 56) + 'px;max-width:90px;object-fit:contain;flex-shrink:0">' : '')
     + '<div>'
@@ -4887,8 +5116,9 @@ function docInnerHTML(d) {
     + '<br>โทร ' + escapeHtml(co.company_phone || '') + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '') + '</div>'
     + '</div>'
     + '</div>'
-    + '<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#B71C1C">' + escapeHtml(cfg.th || '') + '</div>'
-    + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(cfg.en || '') + '</div></div>'
+    + '<div style="text-align:right"><div style="font-size:' + (combined ? 17 : 22) + 'px;font-weight:800;color:#B71C1C;white-space:nowrap">' + escapeHtml(titleTh) + '</div>'
+    + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(titleEn) + '</div>'
+    + '</div>'
     + '</div>'
     + '</td></tr></thead><tbody><tr><td>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">'
@@ -4934,9 +5164,15 @@ function docInnerHTML(d) {
         ? '<div style="clear:both;margin-top:10px;font-size:10.5px;color:#888">* ภาษีหัก ณ ที่จ่าย ' + escapeHtml(d.wht_rate) + '% คำนวณจากฐาน ' + fmtNum(d.wht_base) + ' บาท — กรุณาออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) ให้ด้วย</div>'
         : '')
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
+    // Money already in — say so on the face of the document, which is what
+    // makes this sheet serve as the receipt as well as the tax invoice.
+    + (combined
+        ? '<div style="clear:both;margin-top:14px;padding:9px 13px;background:#f2f7f3;border:1px solid #cfe3d6;border-radius:7px;font-size:11.5px;color:#2D7A56;font-weight:600">'
+          + '✓ ได้รับเงินตามรายการข้างต้นเรียบร้อยแล้ว</div>'
+        : '')
     // Bank details belong only on documents that ask for money. A receipt is
     // proof the money already arrived, so "ชำระเงินที่:" makes no sense there.
-    + ((PAYABLE_TYPES[d.doc_type] && (co.bank_name || co.bank_account)) ?
+    + (showBank ?
         '<div style="margin-top:14px;padding:10px 14px;background:#f9f8f5;border:1px solid #e5e3dc;border-radius:7px;font-size:11.5px;color:#444">'
         + '<strong style="color:#B71C1C">ชำระเงินที่:</strong> ' + escapeHtml(co.bank_name || '')
         + (co.bank_account ? ' &nbsp;|&nbsp; เลขบัญชี: <strong>' + escapeHtml(co.bank_account) + '</strong>' : '')
@@ -4947,11 +5183,13 @@ function docInnerHTML(d) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px">'
     + '<div style="text-align:center;font-size:11px;color:#888">'
     +   '<div style="height:56px"></div>'
-    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้รับเอกสาร / Received by'
+    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>'
+    +   (combined ? 'ผู้รับสินค้า/บริการ / Customer' : 'ผู้รับเอกสาร / Received by')
     + '</div>'
     + '<div style="text-align:center;font-size:11px;color:#888">'
     +   (SIG1 ? '<img src="' + SIG1 + '" style="max-height:56px;max-width:170px;object-fit:contain;display:block;margin:0 auto 2px">' : '<div style="height:56px"></div>')
-    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>ผู้มีอำนาจลงนาม / Authorized'
+    +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>'
+    +   (combined ? 'ผู้รับเงิน / Received by' : 'ผู้มีอำนาจลงนาม / Authorized')
     +   (co.company_name_th ? '<div style="color:#aaa;margin-top:3px">' + escapeHtml(co.company_name_th) + '</div>' : '')
     + '</div>'
     + '</div>'
@@ -4973,6 +5211,9 @@ function docPrint() {
     + '.doc-runner>thead{display:table-header-group}'
     + '.doc-runner>tfoot{display:table-footer-group}'
     + '.doc-runner>thead>tr>td,.doc-runner>tbody>tr>td{padding:0;border:none;vertical-align:top}'
+    // Room for Thai vowel+tone stacks, so the repeated header has no overflowing
+    // ink to strand at the page break.
+    + '.doc-runner>thead>tr>td{line-height:1.5}'
     + '.doc-runner>tbody>tr{page-break-inside:auto}'
     + 'tbody tr{page-break-inside:avoid}';
   const w = window.open('', '_blank');
