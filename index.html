@@ -4026,6 +4026,40 @@ const PAY_METHODS = ['เงินสด', 'โอนเงิน', 'เช็�
 // Withholding tax (หัก ณ ที่จ่าย) — money docs only, not purchase orders.
 const WHT_TYPES = { invoice: 1, taxinvoice: 1, billing: 1, receipt: 1 };
 
+// ── COMBINED FORMS (ชุดเอกสารในฉบับเดียว) ──────────────────────────────────
+// Thai practice prints a tax invoice together with the commercial document it
+// travels with, on one sheet. Which partner it takes depends on where the money
+// is at the moment of issue:
+//   invoice — money not yet received: the sheet also demands payment, so it
+//             keeps the due date and the bank details.
+//   receipt — money already received: the sheet also acknowledges it, so the
+//             bank block goes and the signature line becomes ผู้รับเงิน.
+// The record stays a tax invoice and keeps the tax invoice number series either
+// way — only the printed face changes. Adding another pairing (ใบส่งของ/
+// ใบกำกับภาษี, say) means one more entry here and nothing else.
+const COMBINED_FORMS = {
+  invoice: {
+    th: 'ใบแจ้งหนี้ / ใบกำกับภาษี', en: 'Invoice / Tax Invoice',
+    label: 'ใบแจ้งหนี้ / ใบกำกับภาษี',
+    hint: 'ใช้เมื่อส่งมอบแล้วแต่ยังไม่ได้รับเงิน — ใบเดียวทั้งแจ้งหนี้และเป็นใบกำกับภาษี',
+    paid: false,
+  },
+  receipt: {
+    th: 'ใบกำกับภาษี / ใบเสร็จรับเงิน', en: 'Tax Invoice / Receipt',
+    label: 'ใบกำกับภาษี / ใบเสร็จรับเงิน',
+    hint: 'ใช้เมื่อรับเงินแล้ว ณ วันที่ออกใบกำกับภาษี — ไม่ต้องออกใบเสร็จแยกอีกฉบับ',
+    paid: true,
+  },
+};
+
+// The combined form a document prints as, or null for a plain document. Only a
+// tax invoice can carry one — the pairing exists to let the tax invoice absorb
+// another document, not the other way round.
+function combinedForm(d) {
+  if (!d || d.doc_type !== 'taxinvoice') return null;
+  return COMBINED_FORMS[String(d.combined_form || '')] || null;
+}
+
 const WHT_RATES = [
   { v: '1',  label: '1% ค่าขนส่ง' },
   { v: '2',  label: '2% ค่าโฆษณา' },
@@ -4219,7 +4253,7 @@ async function createReceiptFromDoc(id) {
 // invoice is raised after payment rather than at the point of billing.
 // Carries the invoice's own lines and VAT (NOT the invoice as a single line):
 // the tax invoice must show the supply it taxes, and its VAT has to trace back
-// to those lines. Defaults to the combined ใบกำกับภาษี/ใบเสร็จรับเงิน form when
+// to those lines. Prints as the combined ใบกำกับภาษี/ใบเสร็จรับเงิน form when
 // the money is already in — that single sheet is what the customer expects.
 async function createTaxInvoiceFromDoc(id) {
   loading(true);
@@ -4243,7 +4277,10 @@ async function createTaxInvoiceFromDoc(id) {
     due_date: fullyPaid ? '' : (d.due_date ? formatDate(d.due_date) : ''),
     ref_no: d.doc_number || '',
     source_doc_id: d.id,
-    combined_receipt: fullyPaid ? 'Y' : '',
+    // Paid → the sheet acknowledges receipt. Unpaid → a plain tax invoice, not
+    // the ใบแจ้งหนี้/ใบกำกับภาษี pairing: the invoice it came from already
+    // demands payment, and printing a second demand would double the debt.
+    combined_form: fullyPaid ? 'receipt' : '',
     customer_name_th: d.customer_name_th,
     customer_tax_id: d.customer_tax_id,
     customer_address_th: d.customer_address_th,
@@ -4357,7 +4394,8 @@ function renderDocRows() {
       : '';
     // Receipt shortcut: only once money has actually been received.
     // …but not on a tax invoice that already prints as its own receipt.
-    const receiptBtn = (PAYABLE_TYPES[d.doc_type] && paidNow > 0 && String(d.combined_receipt) !== 'Y')
+    const cf = combinedForm(d);
+    const receiptBtn = (PAYABLE_TYPES[d.doc_type] && paidNow > 0 && !(cf && cf.paid))
       ? '<button class="btn btn-secondary btn-sm btn-icon" title="ออกใบเสร็จ" onclick="createReceiptFromDoc(\'' + d.id + '\')">💵</button>'
       : '';
     // Tax invoice shortcut — invoices only, and only once, since an invoice is
@@ -4542,7 +4580,7 @@ async function editDoc(id) {
     customer_address_th: d.customer_address_th, customer_phone: d.customer_phone, customer_email: d.customer_email,
     subject: d.subject, payment_terms: d.payment_terms, note: d.note,
     discount: d.discount, vat_type: d.vat_type, status: d.status, items: d.items || [],
-    source_doc_id: d.source_doc_id, combined_receipt: d.combined_receipt,
+    source_doc_id: d.source_doc_id, combined_form: d.combined_form,
     // Without these the WHT block came back blank and re-saving silently
     // dropped the deduction the document was issued with.
     wht_rate: d.wht_rate, wht_base: d.wht_base,
@@ -4754,15 +4792,20 @@ function buildDocForm(doc) {
     + '</div>'
     // The source document this one was raised from (invoice → tax invoice).
     + '<input type="hidden" id="doc-source" value="' + escapeHtml(doc.source_doc_id || '') + '">'
-    // A tax invoice issued at the moment the money arrives is normally printed
-    // as one sheet serving as both documents — same number, same tax invoice
-    // series. Offered on tax invoices only.
+    // A tax invoice is commonly printed on one sheet with the commercial
+    // document it travels with. A select, not two checkboxes: the pairings are
+    // mutually exclusive — one sheet cannot both ask for money and acknowledge
+    // it. Offered on tax invoices only (see COMBINED_FORMS).
     + (docState.type === 'taxinvoice'
-        ? '<label style="display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;font-size:14px">'
-          + '<input type="checkbox" id="doc-combined"' + (doc.combined_receipt === 'Y' ? ' checked' : '') + '>'
-          + '<span>ออกเป็น <strong>ใบกำกับภาษี/ใบเสร็จรับเงิน</strong> ในฉบับเดียวกัน'
-          + '<span style="color:var(--text3);font-size:12px;display:block;margin-top:2px">ใช้เมื่อรับเงินแล้ว ณ วันที่ออกใบกำกับภาษี — ไม่ต้องออกใบเสร็จแยกอีกฉบับ</span></span>'
-          + '</label>'
+        ? '<div class="field" style="margin-top:12px"><label>รูปแบบเอกสาร</label>'
+          + '<select id="doc-combined" onchange="docCombinedChanged()" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">'
+          + '<option value="">ใบกำกับภาษี (อย่างเดียว)</option>'
+          + Object.entries(COMBINED_FORMS).map(([k, f]) =>
+              '<option value="' + k + '"' + (String(doc.combined_form || '') === k ? ' selected' : '') + '>'
+              + escapeHtml(f.label) + '</option>').join('')
+          + '</select>'
+          + '<span id="doc-combined-hint" style="font-size:12px;color:var(--text3);margin-top:4px"></span>'
+          + '</div>'
         : '')
     + '</div>'
     // customer
@@ -4816,11 +4859,24 @@ function buildDocForm(doc) {
 
   setV('doc-status', doc.status || 'draft');
   setV('doc-vat-type', doc.vat_type || 'exclusive');
+  docCombinedChanged();
   const items = doc.items || [];
   if (items.length) items.forEach(it => addDocItem(it));
   else addDocItem();
   docCalc();
   window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+// Explain the selected pairing, and hide the due date on the receipt form —
+// money already received has nothing left to fall due.
+function docCombinedChanged() {
+  const f = COMBINED_FORMS[gvv('doc-combined')];
+  const hint = document.getElementById('doc-combined-hint');
+  if (hint) hint.textContent = f ? f.hint : '';
+  const due = document.getElementById('doc-due');
+  const dueField = due && due.closest ? due.closest('.field') : null;
+  if (dueField) dueField.style.display = (f && f.paid) ? 'none' : '';
+  if (f && f.paid && due) due.value = '';
 }
 
 function docPickCustomer() {
@@ -4998,7 +5054,7 @@ function buildDocBody() {
     subject: gvv('doc-subject'),
     payment_terms: gvv('doc-pay'),
     source_doc_id: gvv('doc-source'),
-    combined_receipt: document.getElementById('doc-combined')?.checked ? 'Y' : '',
+    combined_form: COMBINED_FORMS[gvv('doc-combined')] ? gvv('doc-combined') : '',
     note: gvv('doc-note'),
     subtotal: sub.toFixed(2),
     discount: disc.toFixed(2),
@@ -5067,14 +5123,15 @@ function previewDocData(d) {
 function docInnerHTML(d) {
   const cfg = DOC_TYPES[d.doc_type] || DOC_TYPES[docState.type] || {};
   const co = CONFIG || {};
-  // A tax invoice issued against money already received is printed as one sheet
-  // that is both documents. It keeps the tax invoice number series (VAT law
-  // requires the tax invoice to carry it) and drops the "pay us here" block —
-  // the money has arrived, so the sheet acknowledges receipt instead.
-  const combined = String(d.combined_receipt) === 'Y' && d.doc_type === 'taxinvoice';
-  const titleTh = combined ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน' : (cfg.th || '');
-  const titleEn = combined ? 'Tax Invoice / Receipt' : (cfg.en || '');
-  const showBank = PAYABLE_TYPES[d.doc_type] && !combined && (co.bank_name || co.bank_account);
+  // A tax invoice printed together with the document it travels with — see
+  // COMBINED_FORMS. `paid` is what actually changes the sheet: a form that
+  // acknowledges money drops the "pay us here" block and signs as ผู้รับเงิน,
+  // while one that still asks for money keeps both.
+  const cf = combinedForm(d);
+  const titleTh = cf ? cf.th : (cfg.th || '');
+  const titleEn = cf ? cf.en : (cfg.en || '');
+  const settled = !!(cf && cf.paid);
+  const showBank = PAYABLE_TYPES[d.doc_type] && !settled && (co.bank_name || co.bank_account);
   let rows = '';
   (d.items || []).forEach(it => {
     rows += '<tr>'
@@ -5116,7 +5173,7 @@ function docInnerHTML(d) {
     + '<br>โทร ' + escapeHtml(co.company_phone || '') + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '') + '</div>'
     + '</div>'
     + '</div>'
-    + '<div style="text-align:right"><div style="font-size:' + (combined ? 17 : 22) + 'px;font-weight:800;color:#B71C1C;white-space:nowrap">' + escapeHtml(titleTh) + '</div>'
+    + '<div style="text-align:right"><div style="font-size:' + (cf ? 17 : 22) + 'px;font-weight:800;color:#B71C1C;white-space:nowrap">' + escapeHtml(titleTh) + '</div>'
     + '<div style="font-size:11px;color:#aaa;letter-spacing:.5px">' + escapeHtml(titleEn) + '</div>'
     + '</div>'
     + '</div>'
@@ -5166,7 +5223,7 @@ function docInnerHTML(d) {
     + (d.note ? '<div style="margin-top:14px;padding:10px 12px;background:#fffbf0;border:1px solid #fde8a0;border-radius:7px;font-size:11px;color:#555;white-space:pre-line"><strong>หมายเหตุ:</strong> ' + escapeHtml(d.note) + '</div>' : '')
     // Money already in — say so on the face of the document, which is what
     // makes this sheet serve as the receipt as well as the tax invoice.
-    + (combined
+    + (settled
         ? '<div style="clear:both;margin-top:14px;padding:9px 13px;background:#f2f7f3;border:1px solid #cfe3d6;border-radius:7px;font-size:11.5px;color:#2D7A56;font-weight:600">'
           + '✓ ได้รับเงินตามรายการข้างต้นเรียบร้อยแล้ว</div>'
         : '')
@@ -5184,12 +5241,12 @@ function docInnerHTML(d) {
     + '<div style="text-align:center;font-size:11px;color:#888">'
     +   '<div style="height:56px"></div>'
     +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>'
-    +   (combined ? 'ผู้รับสินค้า/บริการ / Customer' : 'ผู้รับเอกสาร / Received by')
+    +   (settled ? 'ผู้รับสินค้า/บริการ / Customer' : 'ผู้รับเอกสาร / Received by')
     + '</div>'
     + '<div style="text-align:center;font-size:11px;color:#888">'
     +   (SIG1 ? '<img src="' + SIG1 + '" style="max-height:56px;max-width:170px;object-fit:contain;display:block;margin:0 auto 2px">' : '<div style="height:56px"></div>')
     +   '<div style="border-top:1px solid #bbb;margin:0 10px 6px"></div>'
-    +   (combined ? 'ผู้รับเงิน / Received by' : 'ผู้มีอำนาจลงนาม / Authorized')
+    +   (settled ? 'ผู้รับเงิน / Received by' : 'ผู้มีอำนาจลงนาม / Authorized')
     +   (co.company_name_th ? '<div style="color:#aaa;margin-top:3px">' + escapeHtml(co.company_name_th) + '</div>' : '')
     + '</div>'
     + '</div>'
