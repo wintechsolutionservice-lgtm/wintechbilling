@@ -2752,9 +2752,9 @@ function renderPreview(qt) {
         <div style="font-size:10px;font-weight:700;color:#B71C1C;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">ลูกค้า / Customer</div>
         <div style="font-weight:700;font-size:13px;line-height:1.4">
           ${qt.customer_name_th||''}
-          ${qt.customer_branch_type === 'สาขา'
-            ? ` <span style="font-weight:400;font-size:12px;color:#666">(สาขาที่ ${String(qt.customer_branch_number||'').padStart(5,'0')})</span>`
-            : (qt.customer_tax_id ? ` <span style="font-weight:400;font-size:12px;color:#666">(สำนักงานใหญ่)</span>` : '')}
+          ${qt.customer_tax_id
+            ? ` <span style="font-weight:400;font-size:12px;color:#666">(${branchLabel(qt.customer_branch_type, qt.customer_branch_number)})</span>`
+            : ''}
         </div>
         ${qt.customer_tax_id ? `<div style="font-size:11px;color:#666;margin-top:1px">เลขผู้เสียภาษี: ${qt.customer_tax_id}</div>` : ''}
         <div style="font-size:11px;color:#777;margin-top:2px;line-height:1.5">${(qt.customer_address_th||'').replace(/\n/g,' ')}</div>
@@ -2879,7 +2879,7 @@ function renderPreview(qt) {
         <div>
           <span style="font-weight:700;font-size:10px;color:#B71C1C;text-transform:uppercase;letter-spacing:.5px">ลูกค้า: </span>
           <span style="font-weight:700">${qt.customer_name_th||''}</span>
-          ${qt.customer_branch_type==='สาขา' ? `<span style="font-size:11px;color:#666"> (สาขาที่ ${String(qt.customer_branch_number||'').padStart(5,'0')})</span>` : ''}
+          ${qt.customer_tax_id ? `<span style="font-size:11px;color:#666"> (${branchLabel(qt.customer_branch_type, qt.customer_branch_number)})</span>` : ''}
         </div>
         <div style="text-align:right;max-width:50%">
           <span style="font-weight:700;font-size:10px;color:#B71C1C;text-transform:uppercase;letter-spacing:.5px">โครงการ: </span>
@@ -4060,6 +4060,33 @@ function combinedForm(d) {
   return COMBINED_FORMS[String(d.combined_form || '')] || null;
 }
 
+// ── BRANCH (สำนักงานใหญ่ / สาขาที่ NNNNN) ───────────────────────────────────
+// A Thai tax invoice must state, for both parties, whether the establishment is
+// the head office or a branch. "Head office" is not the absence of a branch —
+// leaving it blank is the omission the Revenue Department objects to, so an
+// establishment with a tax ID always prints one or the other.
+// Returns '' only when there is no tax ID, i.e. no registered establishment.
+function branchLabel(type, number) {
+  const n = String(number == null ? '' : number).trim();
+  if (String(type) === 'สาขา') {
+    // A branch without its number is still a branch — say so rather than
+    // silently promoting it to head office.
+    return n ? 'สาขาที่ ' + n.padStart(5, '0') : 'สาขา';
+  }
+  return 'สำนักงานใหญ่';
+}
+
+// The company's own branch, from the free-text setting. Users type it in
+// several shapes ("สำนักงานใหญ่", "00000", "2", blank), so normalise before
+// printing: blank or all-zeros means head office.
+function companyBranchLabel(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s || /^0+$/.test(s)) return 'สำนักงานใหญ่';
+  if (/ใหญ่/.test(s)) return 'สำนักงานใหญ่';
+  if (/^\d+$/.test(s)) return 'สาขาที่ ' + s.padStart(5, '0');
+  return s;   // already spelled out, e.g. "สาขาขอนแก่น"
+}
+
 const WHT_RATES = [
   { v: '1',  label: '1% ค่าขนส่ง' },
   { v: '2',  label: '2% ค่าโฆษณา' },
@@ -4183,6 +4210,8 @@ async function createDocFromQuotation(qtId, type) {
     ref_no: qt.qt_number || '',
     customer_name_th: qt.customer_name_th,
     customer_tax_id: qt.customer_tax_id,
+    customer_branch_type: qt.customer_branch_type,
+    customer_branch_number: qt.customer_branch_number,
     customer_address_th: qt.customer_address_th,
     customer_phone: qt.customer_phone,
     customer_email: qt.customer_email,
@@ -4228,6 +4257,8 @@ async function createReceiptFromDoc(id) {
     ref_no: d.doc_number || '',
     customer_name_th: d.customer_name_th,
     customer_tax_id: d.customer_tax_id,
+    customer_branch_type: d.customer_branch_type,
+    customer_branch_number: d.customer_branch_number,
     customer_address_th: d.customer_address_th,
     customer_phone: d.customer_phone,
     customer_email: d.customer_email,
@@ -4283,6 +4314,8 @@ async function createTaxInvoiceFromDoc(id) {
     combined_form: fullyPaid ? 'receipt' : '',
     customer_name_th: d.customer_name_th,
     customer_tax_id: d.customer_tax_id,
+    customer_branch_type: d.customer_branch_type,
+    customer_branch_number: d.customer_branch_number,
     customer_address_th: d.customer_address_th,
     customer_phone: d.customer_phone,
     customer_email: d.customer_email,
@@ -4530,6 +4563,8 @@ async function submitBillingNote() {
     ref_no: members.map(d => d.doc_number).join(', '),
     customer_name_th: first.customer_name_th || '',
     customer_tax_id: first.customer_tax_id || '',
+    customer_branch_type: first.customer_branch_type || '',
+    customer_branch_number: first.customer_branch_number || '',
     customer_address_th: first.customer_address_th || '',
     customer_phone: first.customer_phone || '',
     customer_email: first.customer_email || '',
@@ -4577,6 +4612,7 @@ async function editDoc(id) {
   buildDocForm({
     doc_number: d.doc_number, doc_date: formatDate(d.doc_date), due_date: formatDate(d.due_date),
     ref_no: d.ref_no, customer_name_th: d.customer_name_th, customer_tax_id: d.customer_tax_id,
+    customer_branch_type: d.customer_branch_type, customer_branch_number: d.customer_branch_number,
     customer_address_th: d.customer_address_th, customer_phone: d.customer_phone, customer_email: d.customer_email,
     subject: d.subject, payment_terms: d.payment_terms, note: d.note,
     discount: d.discount, vat_type: d.vat_type, status: d.status, items: d.items || [],
@@ -4817,6 +4853,14 @@ function buildDocForm(doc) {
     + '<div class="grid-2">'
     + '<div class="field"><label>ชื่อ / บริษัท</label><input id="doc-cn" value="' + escapeHtml(doc.customer_name_th || '') + '"></div>'
     + '<div class="field"><label>เลขผู้เสียภาษี</label><input id="doc-ct" value="' + escapeHtml(doc.customer_tax_id || '') + '"></div>'
+    // Required on a tax invoice next to the buyer's tax ID.
+    + '<div class="field"><label>สำนักงาน / สาขา</label>'
+    +   '<select id="doc-cbt" onchange="docBranchChanged()" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px">'
+    +   '<option value="หน่วยงานใหญ่">สำนักงานใหญ่</option>'
+    +   '<option value="สาขา"' + (doc.customer_branch_type === 'สาขา' ? ' selected' : '') + '>สาขา</option>'
+    +   '</select></div>'
+    + '<div class="field" id="doc-cbn-field"><label>เลขที่สาขา</label>'
+    +   '<input id="doc-cbn" value="' + escapeHtml(doc.customer_branch_number || '') + '" placeholder="00003" maxlength="5"></div>'
     + '</div>'
     + '<div class="field" style="margin-top:8px"><label>ที่อยู่</label><textarea id="doc-ca">' + escapeHtml(doc.customer_address_th || '') + '</textarea></div>'
     + '<div class="grid-2" style="margin-top:8px">'
@@ -4860,6 +4904,7 @@ function buildDocForm(doc) {
   setV('doc-status', doc.status || 'draft');
   setV('doc-vat-type', doc.vat_type || 'exclusive');
   docCombinedChanged();
+  docBranchChanged();
   const items = doc.items || [];
   if (items.length) items.forEach(it => addDocItem(it));
   else addDocItem();
@@ -4879,6 +4924,15 @@ function docCombinedChanged() {
   if (f && f.paid && due) due.value = '';
 }
 
+// The branch number only means anything for a branch — hide it for a head
+// office rather than leaving a stale number sitting in the form.
+function docBranchChanged() {
+  const isBranch = gvv('doc-cbt') === 'สาขา';
+  const f = document.getElementById('doc-cbn-field');
+  if (f) f.style.display = isBranch ? '' : 'none';
+  if (!isBranch) setV('doc-cbn', '');
+}
+
 function docPickCustomer() {
   const sel = document.getElementById('doc-cust-select');
   if (!sel || sel.value === '') return;
@@ -4889,6 +4943,9 @@ function docPickCustomer() {
   setV('doc-ca', c.address_th || '');
   setV('doc-cph', c.phone || '');
   setV('doc-cem', c.email || '');
+  setV('doc-cbt', c.branch_type === 'สาขา' ? 'สาขา' : 'หน่วยงานใหญ่');
+  setV('doc-cbn', c.branch_number || '');
+  docBranchChanged();
 }
 
 async function docSaveCustomer() {
@@ -4897,7 +4954,9 @@ async function docSaveCustomer() {
   loading(true);
   const res = await api('saveCustomer', {}, {
     name_th: name, tax_id: gvv('doc-ct'), address_th: gvv('doc-ca'),
-    phone: gvv('doc-cph'), email: gvv('doc-cem')
+    phone: gvv('doc-cph'), email: gvv('doc-cem'),
+    branch_type: gvv('doc-cbt') || 'หน่วยงานใหญ่',
+    branch_number: gvv('doc-cbt') === 'สาขา' ? gvv('doc-cbn') : '',
   });
   CUSTOMERS = await api('getCustomers') || CUSTOMERS;
   loading(false);
@@ -5048,6 +5107,8 @@ function buildDocBody() {
     ref_no: gvv('doc-ref'),
     customer_name_th: gvv('doc-cn'),
     customer_tax_id: gvv('doc-ct'),
+    customer_branch_type: gvv('doc-cbt') || 'หน่วยงานใหญ่',
+    customer_branch_number: gvv('doc-cbt') === 'สาขา' ? gvv('doc-cbn') : '',
     customer_address_th: gvv('doc-ca'),
     customer_phone: gvv('doc-cph'),
     customer_email: gvv('doc-cem'),
@@ -5167,10 +5228,16 @@ function docInnerHTML(d) {
     + '<div style="max-width:64%;display:flex;align-items:flex-start;gap:10px">'
     + (co.company_logo ? '<img src="' + co.company_logo + '" style="max-height:' + (parseInt(co.logo_height) || 56) + 'px;max-width:90px;object-fit:contain;flex-shrink:0">' : '')
     + '<div>'
-    + '<div style="font-size:16px;font-weight:700;color:#1a1a1a">' + escapeHtml(co.company_name_th || '') + '</div>'
+    // The establishment marker sits on the name, which is the party it
+    // identifies — not on the tax ID line.
+    + '<div style="font-size:16px;font-weight:700;color:#1a1a1a">' + escapeHtml(co.company_name_th || '')
+    + (co.company_tax_id ? ' <span style="font-weight:400;font-size:12px;color:#666">(' + escapeHtml(companyBranchLabel(co.company_branch)) + ')</span>' : '')
+    + '</div>'
     + (co.company_name_en ? '<div style="font-size:11px;color:#999">' + escapeHtml(co.company_name_en) + '</div>' : '')
     + '<div style="font-size:11px;color:#777;line-height:1.7;margin-top:3px">' + escapeHtml(co.company_address_th || '')
-    + '<br>โทร ' + escapeHtml(co.company_phone || '') + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '') + '</div>'
+    + '<br>โทร ' + escapeHtml(co.company_phone || '')
+    + (co.company_tax_id ? ' · เลขประจำตัวผู้เสียภาษี ' + escapeHtml(co.company_tax_id) : '')
+    + '</div>'
     + '</div>'
     + '</div>'
     + '<div style="text-align:right"><div style="font-size:' + (cf ? 17 : 22) + 'px;font-weight:800;color:#B71C1C;white-space:nowrap">' + escapeHtml(titleTh) + '</div>'
@@ -5181,7 +5248,9 @@ function docInnerHTML(d) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">'
     + '<div style="background:#f9f8f5;border-radius:7px;padding:10px 12px">'
     + '<div style="font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px">' + escapeHtml(cfg.partyTh || 'ลูกค้า') + ' / ' + escapeHtml(cfg.partyEn || 'Customer') + '</div>'
-    + '<div style="font-size:13px;font-weight:600">' + escapeHtml(d.customer_name_th || '-') + '</div>'
+    + '<div style="font-size:13px;font-weight:600">' + escapeHtml(d.customer_name_th || '-')
+    + (d.customer_tax_id ? ' <span style="font-weight:400;font-size:12px;color:#666">(' + escapeHtml(branchLabel(d.customer_branch_type, d.customer_branch_number)) + ')</span>' : '')
+    + '</div>'
     + (d.customer_tax_id ? '<div style="font-size:11px;color:#555;margin-top:2px">เลขผู้เสียภาษี: ' + escapeHtml(d.customer_tax_id) + '</div>' : '')
     + (d.customer_address_th ? '<div style="font-size:11px;color:#555;margin-top:2px">' + escapeHtml(d.customer_address_th).replace(/\n/g, '<br>') + '</div>' : '')
     + (d.customer_phone ? '<div style="font-size:11px;color:#555;margin-top:2px">โทร ' + escapeHtml(d.customer_phone) + '</div>' : '')
