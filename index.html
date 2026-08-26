@@ -811,6 +811,41 @@ tr:hover td { background: var(--accent-lt); }
 }
 .annex-structured input:focus, .annex-structured textarea:focus { border-color: var(--accent2); }
 .annex-structured textarea { min-height: 80px; resize: vertical; }
+.annex-image .img-drop {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--bg);
+  transition: border-color .15s, background .15s;
+}
+.annex-image .img-drop:hover,
+.annex-image .img-drop.dragover { border-color: var(--accent2); background: rgba(183,28,28,.04); }
+.annex-image .img-drop img { max-width: 100%; max-height: 260px; border-radius: 4px; display: block; margin: 0 auto; }
+.annex-image .img-hint { font-size: 13px; color: var(--text3); }
+.annex-image .img-meta {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+.annex-image .img-meta input,
+.annex-image .img-meta select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  outline: none;
+}
+.annex-image .img-meta input:focus,
+.annex-image .img-meta select:focus { border-color: var(--accent2); }
+@media (max-width: 640px) {
+  .annex-image .img-meta { grid-template-columns: 1fr; }
+}
 .add-annex-row {
   display: flex;
   gap: 8px;
@@ -1425,6 +1460,7 @@ input.dpick {
       <div class="add-annex-row">
         <button class="btn btn-secondary" onclick="addAnnexSection('rich')">➕ Rich Text Section</button>
         <button class="btn btn-secondary" onclick="addAnnexSection('structured')">➕ Structured Section</button>
+        <button class="btn btn-secondary" onclick="addAnnexSection('image')">➕ รูปภาพ</button>
       </div>
     </div>
 
@@ -2403,6 +2439,7 @@ function addAnnexSection(type = 'rich', data = {}) {
       <div class="annex-type-toggle">
         <button class="${type==='rich'?'active':''}" onclick="setAnnexType('${id}','rich')">✍️ Rich Text</button>
         <button class="${type==='structured'?'active':''}" onclick="setAnnexType('${id}','structured')">🗂 Structured</button>
+        <button class="${type==='image'?'active':''}" onclick="setAnnexType('${id}','image')">🖼 รูปภาพ</button>
       </div>
       <div class="annex-rich" style="display:${type==='rich'?'block':'none'}">
         <div class="field">
@@ -2415,9 +2452,43 @@ function addAnnexSection(type = 'rich', data = {}) {
         <div id="${id}-rows"></div>
         <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="addStructRow('${id}')">➕ เพิ่มรายการ</button>
       </div>
+      <div class="annex-image" style="display:${type==='image'?'block':'none'}">
+        <div class="img-drop" id="${id}-drop"
+             onclick="document.getElementById('${id}-file').click()"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="handleAnnexImgDrop(event,'${id}')">
+          <div id="${id}-preview"><span class="img-hint">คลิกหรือลากไฟล์รูปมาวาง (JPG / PNG)</span></div>
+        </div>
+        <input type="file" id="${id}-file" accept="image/*" style="display:none"
+               onchange="handleAnnexImgFile(this.files[0],'${id}');this.value=''">
+        <div class="img-meta">
+          <input type="text" id="${id}-cap" placeholder="คำบรรยายใต้รูป (ไม่ใส่ก็ได้)">
+          <select id="${id}-w">
+            <option value="100">เต็มความกว้าง</option>
+            <option value="75">75%</option>
+            <option value="50">ครึ่งหน้า</option>
+          </select>
+          <button class="btn btn-danger btn-sm" onclick="clearAnnexImg('${id}')">🗑 ลบรูป</button>
+        </div>
+      </div>
     </div>
   `;
   document.getElementById('annex-sections').appendChild(div);
+
+  // Init image section from the saved {img_key, caption, width} blob
+  if (type === 'image') {
+    let meta = {};
+    try { meta = JSON.parse(data.rich_content || '{}') || {}; } catch (e) {}
+    if (meta.img_key) {
+      div.dataset.imgKey = meta.img_key;
+      showAnnexImg(id, ANNEX_IMG[meta.img_key] || '');
+    }
+    const cap = document.getElementById(id + '-cap');
+    if (cap) cap.value = meta.caption || '';
+    const wsel = document.getElementById(id + '-w');
+    if (wsel) wsel.value = String(meta.width || 100);
+  }
 
   // Init structured rows
   if (type === 'structured' && data.rich_content) {
@@ -2433,11 +2504,110 @@ function addAnnexSection(type = 'rich', data = {}) {
 function setAnnexType(id, type) {
   const sec = document.getElementById(id);
   sec.dataset.type = type;
+  const order = ['rich', 'structured', 'image'];
   sec.querySelectorAll('.annex-type-toggle button').forEach((b, i) => {
-    b.classList.toggle('active', (i===0 && type==='rich') || (i===1 && type==='structured'));
+    b.classList.toggle('active', order[i] === type);
   });
-  sec.querySelector('.annex-rich').style.display      = type==='rich' ? 'block' : 'none';
+  sec.querySelector('.annex-rich').style.display       = type==='rich' ? 'block' : 'none';
   sec.querySelector('.annex-structured').style.display = type==='structured' ? 'block' : 'none';
+  sec.querySelector('.annex-image').style.display      = type==='image' ? 'block' : 'none';
+}
+
+// ── Annex images ──────────────────────────────────────────
+// Stored in the backend "Assets" sheet (chunked base64, same as logo/signature)
+// under a key of the form `annex:<timestamp>-<rand>`; the annex row itself only
+// keeps that key + caption + width. ANNEX_IMG is the in-page cache of the data.
+let ANNEX_IMG = {};
+const ANNEX_IMG_MAX_PX = 1400;             // longest side after downscaling
+const ANNEX_IMG_MAX_IN = 12 * 1024 * 1024; // reject absurd originals up front
+
+function handleAnnexImgDrop(e, id) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleAnnexImgFile(file, id);
+}
+
+async function handleAnnexImgFile(file, id) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('❌ ไฟล์นี้ไม่ใช่รูปภาพ', 'error'); return; }
+  if (file.size > ANNEX_IMG_MAX_IN) { toast('❌ ไฟล์ใหญ่เกินไป (สูงสุด 12MB)', 'error'); return; }
+  const sec = document.getElementById(id);
+  if (!sec) return;
+  try {
+    loading(true);
+    const data = await downscaleImage(file);
+    const key  = sec.dataset.imgKey || ('annex:' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+    const saved = await api('saveAsset', {}, { key, data });
+    if (!saved) throw new Error('บันทึกรูปที่เซิร์ฟเวอร์ไม่สำเร็จ');
+    sec.dataset.imgKey = key;
+    ANNEX_IMG[key] = data;
+    showAnnexImg(id, data);
+    loading(false);
+    toast('✅ อัปโหลดรูปเรียบร้อย (~' + Math.round(data.length / 1400) + ' KB)');
+  } catch (err) {
+    loading(false);
+    toast('❌ อัปโหลดรูปไม่สำเร็จ: ' + (err.message || err), 'error');
+  }
+}
+
+// Shrink to ANNEX_IMG_MAX_PX on the longest side so the base64 stays small
+// enough to store in the sheet and to print without bloating the page.
+function downscaleImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('อ่านไฟล์ไม่ได้'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('ไฟล์รูปเสียหาย'));
+      img.onload = () => {
+        const scale = Math.min(1, ANNEX_IMG_MAX_PX / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width  * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        // PNG keeps text/diagrams crisp, but only when the source is modest;
+        // photos go to JPEG so a page of images doesn't weigh megabytes.
+        const png = file.type === 'image/png' && file.size <= 800 * 1024;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!png) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); } // JPEG has no alpha
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(png ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function showAnnexImg(id, src) {
+  const box = document.getElementById(id + '-preview');
+  if (!box) return;
+  box.innerHTML = src
+    ? `<img src="${src}" alt="">`
+    : '<span class="img-hint">คลิกหรือลากไฟล์รูปมาวาง (JPG / PNG)</span>';
+}
+
+async function clearAnnexImg(id) {
+  const sec = document.getElementById(id);
+  if (!sec) return;
+  const key = sec.dataset.imgKey;
+  delete sec.dataset.imgKey;
+  showAnnexImg(id, '');
+  if (key) {
+    delete ANNEX_IMG[key];
+    await api('saveAsset', {}, { key, data: '' }); // drop the chunks on the backend
+  }
+}
+
+// Pull the images an annex refers to into ANNEX_IMG (only the missing ones).
+async function loadAnnexImages(qt) {
+  const keys = ((qt && qt.annex) || []).filter(a => a.annex_type === 'image').map(a => {
+    try { return (JSON.parse(a.rich_content || '{}') || {}).img_key || ''; } catch (e) { return ''; }
+  }).filter(k => k && !ANNEX_IMG[k]);
+  if (!keys.length) return;
+  const got = await api('getAssetsByKeys', {}, { keys });
+  Object.assign(ANNEX_IMG, got || {});
 }
 
 let structSeq = 0;
@@ -2482,6 +2652,12 @@ function getAnnexData() {
       const txts = sec.querySelectorAll('.annex-rich textarea');
       obj.section_content_th = txts[0]?.value || '';
       obj.section_content_en = txts[1]?.value || '';
+    } else if (type === 'image') {
+      obj.rich_content = JSON.stringify({
+        img_key : sec.dataset.imgKey || '',
+        caption : document.getElementById(sec.id + '-cap')?.value || '',
+        width   : parseInt(document.getElementById(sec.id + '-w')?.value) || 100,
+      });
     } else {
       const rows = [...sec.querySelectorAll('.struct-row')].map(r => {
         const inputs = r.querySelectorAll('input,textarea');
@@ -2579,6 +2755,7 @@ async function saveAndPreview() {
 async function editQuotation(id) {
   loading(true);
   const qt = await api('getQuotation', { id });
+  await loadAnnexImages(qt);
   loading(false);
   if (!qt) return;
 
@@ -2642,6 +2819,7 @@ async function editQuotation(id) {
 async function previewQuotation(id) {
   loading(true);
   const qt = await api('getQuotation', { id });
+  await loadAnnexImages(qt);
   loading(false);
   if (!qt) return;
   previewedQtId = id;
@@ -2671,6 +2849,16 @@ function renderPreview(qt) {
     let content = '';
     if (sec.annex_type === 'rich') {
       content = `<div style="white-space:pre-wrap;font-size:12px;line-height:1.7">${sec.section_content_th||''}</div>`;
+    } else if (sec.annex_type === 'image') {
+      // Image data lives in the Assets sheet; ANNEX_IMG holds what we fetched.
+      let meta = {};
+      try { meta = JSON.parse(sec.rich_content || '{}') || {}; } catch (e) {}
+      const src = ANNEX_IMG[meta.img_key] || '';
+      content = src ? `
+        <figure style="margin:0;text-align:center;page-break-inside:avoid;break-inside:avoid">
+          <img src="${src}" style="width:${meta.width||100}%;max-width:100%;height:auto;border:1px solid #ddd">
+          ${meta.caption ? `<figcaption style="font-size:11px;color:#666;margin-top:6px">${meta.caption}</figcaption>` : ''}
+        </figure>` : '';
     } else {
       try {
         const rows = JSON.parse(sec.rich_content || '[]');
@@ -2983,6 +3171,7 @@ function printDoc() {
 async function copyQuotation(id) {
   loading(true);
   const qt = await api('getQuotation', { id });
+  await loadAnnexImages(qt);
   loading(false);
   if (!qt) return;
 
@@ -3538,7 +3727,16 @@ async function demoApi(action, params, body) {
         demoSave(); return { deleted: a.id };
       }
 
-      case 'getAssets': return _clone(db.assets);
+      case 'getAssets': {
+        const out = {};
+        Object.keys(db.assets).forEach(k => { if (k.indexOf('annex:') !== 0) out[k] = db.assets[k]; });
+        return _clone(out);
+      }
+      case 'getAssetsByKeys': {
+        const out = {};
+        (a.keys || []).forEach(k => { if (db.assets[k]) out[k] = db.assets[k]; });
+        return _clone(out);
+      }
       case 'saveAsset': { if (!a.key) throw new Error('Missing asset key'); if (a.data) db.assets[a.key] = a.data; else delete db.assets[a.key]; demoSave(); return { key: a.key, size: (a.data || '').length }; }
       case 'exportAll': return { exported_at: _nowIso(), demo: true, Documents: db.documents, Payments: db.payments, Customers: db.customers, Quotations: db.quotations };
 
